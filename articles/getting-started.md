@@ -27,7 +27,7 @@ interactive for interactive exploration of
 ``` r
 
 # Install from GitHub
-devtools::install_github("dbverse-org/dbVisuals2")
+devtools::install_github("dbverse-org/dbVisuals2", subdir = "r-package")
 
 # Optional: Install all recommended dependencies
 library(dbVisuals)

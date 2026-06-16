@@ -71,7 +71,7 @@ Install the R package from GitHub:
 ``` r
 
 install.packages("remotes")
-remotes::install_github("dbverse-org/dbVisuals2")
+remotes::install_github("dbverse-org/dbVisuals2", subdir = "r-package")
 ```
 
 Load dbVisuals and install the optional visualization dependencies:
