@@ -1,0 +1,40 @@
+# R specific
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# Package build
+*.tar.gz
+*.zip
+*.Rcheck/
+
+# Development
+.DS_Store
+.idea
+*.idea
+.vscode
+
+# DuckDB databases (for testing)
+*.db
+*.duckdb
+
+# Temporary files
+tmp/
+temp/
+
+# Documentation
+docs/_site/
+docs/.jekyll-cache/
+r-package/pkgdown/
+
+# SQL Rooms frontend (built separately)
+r-package/inst/sqlrooms/node_modules/
+r-package/inst/sqlrooms/.vite/
+r-package/inst/sqlrooms/.next/
+frontend/sqlrooms-ai/node_modules/
+frontend/sqlrooms-ai/dist/
+docs/*
+!docs/visualization-bridge.md
+r-package/inst/doc

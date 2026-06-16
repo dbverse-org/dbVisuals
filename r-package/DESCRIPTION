@@ -1,0 +1,63 @@
+Package: dbVisuals
+Type: Package
+Title: Database-Powered Visualizations for Spatial Data
+Version: 0.1.0
+Authors@R: c(
+    person(
+      "Timur", "Rizvanov",
+      email = "timurr@bu.edu",
+      role = c("aut", "cre")
+    )
+  )
+Author: Timur Rizvanov [aut, cre]
+Maintainer: Timur Rizvanov <timurr@bu.edu>
+Description: Provides a browser-based SQL Rooms interface for interactive exploration
+    of GiottoDB spatial databases. SQL Rooms enables SQL queries, R code execution,
+    and interactive visualizations using deck.gl and Mosaic. Serves as the distribution
+    point for rDeckgl and rMosaic visualization packages.
+License: MIT + file LICENSE
+URL: https://github.com/dbverse-org/dbVisuals2, https://dbverse-org.github.io/dbVisuals2/
+BugReports: https://github.com/dbverse-org/dbVisuals2/issues
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.1.0)
+Imports:
+    callr (>= 3.7.0),
+    httpuv,
+    jsonlite (>= 1.8.0),
+    base64enc,
+    htmlwidgets (>= 1.5.4),
+    utils
+Suggests:
+    DBI (>= 1.1.0),
+    duckdb (>= 0.8.0),
+    dbplyr,
+    dplyr,
+    arrow (>= 12.0.0),
+    remotes,
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+Enhances:
+    rDeckgl,
+    rMosaic,
+    Mosaic.gl
+Config/Needs/check:
+    testthat,
+    knitr,
+    rmarkdown,
+    DBI,
+    duckdb,
+    dbplyr,
+    dplyr,
+    arrow
+Config/Needs/check-light:
+    testthat,
+    knitr,
+    rmarkdown
+Config/Needs/website:
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr

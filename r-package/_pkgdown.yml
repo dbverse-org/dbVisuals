@@ -1,0 +1,47 @@
+url: https://dbverse-org.github.io/dbVisuals2/
+destination: pkgdown
+template:
+  bootstrap: 5
+  bootswatch: flatly
+
+home:
+  title: "dbVisuals: User Interface for dbverse Objects"
+  description: >
+    SQLRooms implementation with REPL functionality designed to enable interactive analyses and visualizations of dbverse objects.
+
+navbar:
+  structure:
+    left: [intro, reference, articles, news]
+    right: [search, github]
+  components:
+    home: ~
+    reference:
+      text: Reference
+      href: reference/index.html
+    articles:
+      text: Articles
+      menu:
+      - text: Getting Started
+        href: articles/getting-started.html
+    news:
+      text: News
+      href: news/index.html
+    github:
+      icon: fab fa-github fa-lg
+      href: https://github.com/dbverse-org/dbVisuals2
+      aria-label: GitHub
+
+reference:
+  - title: "Main Functions"
+    desc: "Core SQL Rooms functionality"
+    contents:
+      - launchBrowser
+      - stop_sqlrooms
+      - sqlrooms_export_table
+      - sqlrooms_register
+      - dbvisuals_export_htmlwidget
+  - title: "Installation Helpers"
+    desc: "Dependency management"
+    contents:
+      - install_dbvisuals_deps
+
