@@ -579,8 +579,8 @@ const CanvasChartStackPanel: FC<{group: CanvasChartStackGroup}> = ({group}) => {
                 key={slotId}
                 className={
                   horizontal
-                    ? 'bg-background flex h-full min-h-[220px] w-[420px] min-w-[420px] flex-col overflow-hidden rounded-md border'
-                    : 'bg-background flex h-[280px] min-h-[280px] w-full flex-col overflow-hidden rounded-md border'
+                    ? 'bg-background flex h-full min-h-[220px] w-[520px] min-w-[440px] max-w-[900px] shrink-0 resize-x flex-col overflow-hidden rounded-md border'
+                    : 'bg-background flex h-[320px] min-h-[240px] max-h-[720px] w-full resize-y flex-col overflow-hidden rounded-md border'
                 }
               >
                 <CanvasSlotHeader
