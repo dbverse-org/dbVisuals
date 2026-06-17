@@ -349,11 +349,13 @@ const CanvasChartStackControls: FC<{group: CanvasChartStackGroup}> = ({
         selectedTable.value,
         config.settings,
       ) as unknown as Record<string, unknown>;
+      const renderer = inferCanvasRendererFromSpec(spec, 'mosaic');
       updateSlot(targetChartSlot, {
         slot: targetChartSlot,
         title,
-        renderer: 'mosaic',
+        renderer,
         spec,
+        datasets: renderer === 'deck_json' ? {} : undefined,
         linkedSelection: 'brush',
       });
       setSelectedChartSlot(null);
@@ -671,13 +673,15 @@ const CanvasSpecDialog: FC<{
       if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
         throw new Error('Spec must be a JSON object.');
       }
+      const renderer = inferCanvasRendererFromSpec(parsed, slot.renderer);
+      const rendererChanged = renderer !== slot.renderer;
       updateSlot(slot.id, {
         slot: slot.id,
         title: slot.title,
-        renderer: slot.renderer,
+        renderer,
         spec: parsed,
-        datasets: slot.datasets,
-        bridge: slot.bridge,
+        datasets: renderer === 'deck_json' ? slot.datasets : undefined,
+        bridge: rendererChanged ? undefined : slot.bridge,
         linkedSelection: slot.linkedSelection,
       });
       setError(null);
@@ -771,6 +775,37 @@ const CanvasSpecDialog: FC<{
 
 const formatSpecJson = (spec: CanvasSlotConfig['spec']) =>
   JSON.stringify(spec, null, 2);
+
+function inferCanvasRendererFromSpec(
+  spec: Record<string, unknown>,
+  fallback: CanvasSlotConfig['renderer'],
+): CanvasSlotConfig['renderer'] {
+  if (CanvasMatrixHeatmapSpec.safeParse(spec).success) {
+    return 'matrix_heatmap';
+  }
+
+  if (CanvasDataTableSpec.safeParse(spec).success) {
+    return 'data_table';
+  }
+
+  if (isDeckJsonSpec(spec)) {
+    return 'deck_json';
+  }
+
+  if (isMosaicSpec(spec)) {
+    return 'mosaic';
+  }
+
+  return fallback;
+}
+
+function isDeckJsonSpec(spec: Record<string, unknown>): boolean {
+  return Array.isArray(spec.layers);
+}
+
+function isMosaicSpec(spec: Record<string, unknown>): boolean {
+  return Array.isArray(spec.plot) || Array.isArray(spec.layer);
+}
 
 const EmptySlot: FC = () => (
   <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
