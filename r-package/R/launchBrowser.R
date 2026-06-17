@@ -961,10 +961,12 @@ stop_sqlrooms <- function(dashboard = NULL) {
 #'
 #' @description
 #' Executes a SQL query against the native DuckDB connection and returns
-#' the result as a raw Arrow IPC stream. Uses a cached in-memory
-#' DuckDB connection (see `.get_arrow_conn()`) with the database file
-#' attached READ_ONLY. On query error, the cache is invalidated and the
-#' query is retried once before failing.
+#' the result as a raw Arrow IPC stream. Uses a cached in-memory DuckDB
+#' connection (see `.get_arrow_conn()`) with the database file attached
+#' READ_ONLY. Query results are serialized through the R `arrow` package to
+#' avoid native DuckDB Arrow export crashes observed under concurrent Mosaic
+#' query bursts. On retryable connection errors, the cache is invalidated and
+#' the query is retried once before failing.
 #'
 #' @param req List. HTTP request object with JSON body containing:
 #'   \code{\{"sql": "SELECT ...", "geoarrow": true\}}
@@ -1015,6 +1017,8 @@ stop_sqlrooms <- function(dashboard = NULL) {
     ))
   }
 
+  query <- .arrow_query_rewrite_metadata_query(query)
+
   db_path <- .sqlrooms_env$db_path
   if (is.null(db_path) || !nzchar(db_path) || !file.exists(db_path)) {
     return(list(
@@ -1052,22 +1056,18 @@ stop_sqlrooms <- function(dashboard = NULL) {
         export_query <- .arrow_query_wrap_geometry_columns(con, query)
       }
 
-      out <- .arrow_query_copy_to_raw(con, export_query)
+      out <- .arrow_query_to_raw(con, export_query)
       if (is.null(out) && identical(export_query, query)) {
         export_query <- .arrow_query_wrap_geometry_columns(con, query)
-        out <- .arrow_query_copy_to_raw(con, export_query)
-      }
-      if (is.null(out) && requireNamespace("arrow", quietly = TRUE)) {
-        df <- DBI::dbGetQuery(con, export_query)
-        if (is.data.frame(df)) {
-          arrow_table <- arrow::as_arrow_table(df)
-          out <- arrow::write_to_raw(arrow_table, format = "stream")
-        }
+        out <- .arrow_query_to_raw(con, export_query)
       }
       out
     }
 
     raw_bytes <- tryCatch(run_query(), error = function(e) {
+      if (!.arrow_query_error_is_retryable(e)) {
+        stop(e)
+      }
       .invalidate_arrow_conn()
       run_query()
     })
@@ -1086,7 +1086,9 @@ stop_sqlrooms <- function(dashboard = NULL) {
       body = raw_bytes
     )
   }, error = function(e) {
-    .invalidate_arrow_conn()
+    if (.arrow_query_error_is_retryable(e)) {
+      .invalidate_arrow_conn()
+    }
     list(
       status = 500L,
       headers = json_headers,
@@ -1096,6 +1098,58 @@ stop_sqlrooms <- function(dashboard = NULL) {
       )
     )
   })
+}
+
+
+#' Rewrite metadata queries emitted by Mosaic/DuckDB compatibility layers.
+#'
+#' Some clients ask `information_schema.columns` for DuckDB DESCRIBE-style
+#' `column_type`; current DuckDB exposes this as `data_type` in
+#' `information_schema`. Preserve the expected output shape without forcing a
+#' failed query through the retry path.
+#'
+#' @keywords internal
+#' @noRd
+.arrow_query_rewrite_metadata_query <- function(query) {
+  if (!is.character(query) || !length(query) || !nzchar(query[[1]])) {
+    return(query)
+  }
+
+  if (!grepl(
+    "^\\s*select\\s+column_name\\s*,\\s*column_type\\s+from\\s+information_schema\\.columns\\b",
+    query,
+    ignore.case = TRUE,
+    perl = TRUE
+  )) {
+    return(query)
+  }
+
+  sub(
+    "\\bcolumn_type\\b",
+    "data_type AS column_type",
+    query,
+    ignore.case = TRUE,
+    perl = TRUE
+  )
+}
+
+
+#' Return TRUE when a query error likely reflects a stale connection.
+#'
+#' Binder/parser/catalog errors are deterministic SQL errors. Retrying them
+#' after tearing down the cached DuckDB connection adds load and can destabilize
+#' concurrent Mosaic query bursts.
+#'
+#' @keywords internal
+#' @noRd
+.arrow_query_error_is_retryable <- function(error) {
+  message <- conditionMessage(error)
+  !grepl(
+    "\\b(Binder|Parser|Catalog|Syntax) Error\\b",
+    message,
+    ignore.case = TRUE,
+    perl = TRUE
+  )
 }
 
 
@@ -1151,21 +1205,23 @@ stop_sqlrooms <- function(dashboard = NULL) {
 }
 
 
-#' Export a query result directly from DuckDB as a raw Arrow IPC stream.
+#' Export a query result as a raw Arrow IPC stream.
 #' @keywords internal
 #' @noRd
-.arrow_query_copy_to_raw <- function(con, query) {
-  temp_arrow <- tempfile(fileext = ".arrows")
-  on.exit(unlink(temp_arrow), add = TRUE)
+.arrow_query_to_raw <- function(con, query) {
+  if (!requireNamespace("arrow", quietly = TRUE)) {
+    stop(
+      "Package 'arrow' is required to serialize dbVisuals query results.",
+      call. = FALSE
+    )
+  }
 
-  tryCatch({
-    DBI::dbExecute(con, sprintf(
-      "COPY (%s) TO %s (FORMAT ARROWS)",
-      query,
-      as.character(DBI::dbQuoteString(con, temp_arrow))
-    ))
-    readBin(temp_arrow, "raw", file.info(temp_arrow)$size)
-  }, error = function(e) NULL)
+  df <- DBI::dbGetQuery(con, query)
+  if (!is.data.frame(df)) {
+    return(NULL)
+  }
+
+  arrow::write_to_raw(arrow::as_arrow_table(df), format = "stream")
 }
 
 
