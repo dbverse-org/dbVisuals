@@ -1,0 +1,5 @@
+# Enable SharedArrayBuffer so DuckDB-WASM can run its multi-threaded bundle.
+# credentialless (not require-corp) so cross-origin basemap tiles still load.
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: credentialless
