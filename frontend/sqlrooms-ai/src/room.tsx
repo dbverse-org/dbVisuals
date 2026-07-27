@@ -2,6 +2,7 @@ import {RoomShell} from '@sqlrooms/room-shell';
 import {SqlEditorModal} from '@sqlrooms/sql-editor';
 import {ThemeSwitch, useDisclosure} from '@sqlrooms/ui';
 import {TerminalIcon} from 'lucide-react';
+import {WelcomeNotice} from './components/WelcomeNotice';
 import {roomStore, RoomPanelTypes} from './store';
 
 export const Room = () => {
@@ -9,6 +10,7 @@ export const Room = () => {
 
   return (
     <RoomShell className="h-screen" roomStore={roomStore}>
+      <WelcomeNotice />
       <RoomShell.SidebarContainer>
         <RoomShell.TabButtons tabsId={RoomPanelTypes.enum.left} />
         <RoomShell.TabButtons tabsId={RoomPanelTypes.enum.workspace} />
