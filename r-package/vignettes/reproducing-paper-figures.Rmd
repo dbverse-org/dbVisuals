@@ -63,8 +63,13 @@ Ports default to 3001 (server) and 5173 (front end); pass `port` and
 Push a data frame from R into the running workspace:
 
 ```{r}
-sqlrooms_export_table(mtcars, name = "cars")
-sqlrooms_register("cells", "SELECT * FROM gdb_cell_metadata")
+# a data frame -> a table in the project database
+sqlrooms_export_table("cars", mtcars)
+
+# a lazy dbplyr pipeline -> a view, without pulling it into R
+dplyr::tbl(con, "gdb_cell_metadata") |>
+  dplyr::filter(x > 0) |>
+  sqlrooms_register("cells_pos", x = _)
 ```
 
 ## Entry point 2 — R-side linked views with `mosaic_gl()`
@@ -159,17 +164,23 @@ Expression, FFPE Human Breast Cancer preview dataset on the Xenium platform.
 `03_dimred_concat.R` is the one that needs no database: it loads the Giotto mini
 Visium object from `GiottoData`, so it is the quickest way to check the install.
 
-```bash
-Rscript -e 'source(system.file("../examples/03_dimred_concat.R", package = "dbVisuals"))'
+`examples/` is not installed with the package (it is `.Rbuildignore`d, since the
+scripts need data that does not ship), so run them from a clone of the
+repository with `r-package/` as the working directory:
+
+```r
+setwd("path/to/dbVisuals2/r-package")
+source("examples/03_dimred_concat.R")
 ```
 
 For the in-situ scripts, point the environment at your data and run them from an
 interactive session:
 
-```bash
-export DBLENS_DEMO_DB=/path/to/WTA_Preview_FFPE_Breast_Cancer_xenium.duckdb
-export DBLENS_TRANSCRIPT_FILE=/path/to/transcripts.parquet   # 04, 05, 06 only
-R -e 'source("examples/06_in_situ_zoom_overlay_transcripts_interactive.R")'
+```r
+setwd("path/to/dbVisuals2/r-package")
+Sys.setenv(DBLENS_DEMO_DB = "/path/to/WTA_Preview_FFPE_Breast_Cancer_xenium.duckdb")
+Sys.setenv(DBLENS_TRANSCRIPT_FILE = "/path/to/transcripts.parquet")  # 04, 05, 06 only
+source("examples/06_in_situ_zoom_overlay_transcripts_interactive.R")
 ```
 
 Neither variable is required to be set if the files sit in the working directory
