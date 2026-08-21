@@ -1,6 +1,11 @@
 import {Chat} from '@sqlrooms/ai';
-import {COORDINATE_SYSTEM, OrthographicView} from '@deck.gl/core';
+import {
+  COORDINATE_SYSTEM,
+  OrthographicView,
+  type PickingInfo,
+} from '@deck.gl/core';
 import {DeckGL} from '@deck.gl/react';
+import {clauseIntervals} from '@uwdata/mosaic-core';
 import {
   GeoArrowPathLayer,
   GeoArrowScatterplotLayer,
@@ -60,7 +65,14 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import {useCallback, useEffect, useMemo, useState, type FC} from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FC,
+} from 'react';
 import {
   CanvasSlotId,
   CanvasDataTableSpec,
@@ -1529,14 +1541,15 @@ const DeckSlot: FC<{slot: CanvasSlotConfig}> = ({slot}) => {
           geom: column(bridgeDeck.geometryColumn),
         });
   }, [bridgeDeck]);
-  const {data: linkedPointMapData} = useMosaicClient({
-    enabled: Boolean(bridgeDeck),
-    id: bridgeDeck
-      ? `canvas-${slot.id}-${slot.updatedAt ?? slot.title}`
-      : undefined,
-    selectionName,
-    query: bridgeQuery,
-  });
+  const {data: linkedPointMapData, client: linkedPointMapClient} =
+    useMosaicClient({
+      enabled: Boolean(bridgeDeck),
+      id: bridgeDeck
+        ? `canvas-${slot.id}-${slot.updatedAt ?? slot.title}`
+        : undefined,
+      selectionName,
+      query: bridgeQuery,
+    });
   const datasets = useMemo(
     () => toDeckDatasets(normalizedDeckConfig.datasets),
     [normalizedDeckConfig.datasets],
@@ -1548,6 +1561,8 @@ const DeckSlot: FC<{slot: CanvasSlotConfig}> = ({slot}) => {
         key={slot.updatedAt ?? slot.title}
         bridge={bridgeDeck}
         table={linkedPointMapData}
+        client={linkedPointMapClient}
+        selectionName={selectionName}
       />
     );
   }
@@ -1569,7 +1584,9 @@ const DeckSlot: FC<{slot: CanvasSlotConfig}> = ({slot}) => {
 const BridgeGeoArrowDeckSlot: FC<{
   bridge: BridgeDeckConfig;
   table: ReturnType<typeof useMosaicClient>['data'];
-}> = ({bridge, table}) => {
+  client: ReturnType<typeof useMosaicClient>['client'];
+  selectionName: string;
+}> = ({bridge, table, client, selectionName}) => {
   const prepared = useMemo(() => {
     if (!table || table.numRows === 0) {
       return null;
@@ -1590,6 +1607,118 @@ const BridgeGeoArrowDeckSlot: FC<{
     () => getOrthographicViewState(getTableBounds(table, bridge.x, bridge.y)),
     [bridge.x, bridge.y, table],
   );
+
+  // Deck-origin selection: a rectangular drag over the map writes a Mosaic
+  // crossfilter clause keyed on the bridge x/y columns, so the deck.gl panel
+  // can drive every linked Mosaic view (the reverse of the brush -> deck link).
+  // The panel's own Mosaic client is the clause source, so crossfilter excludes
+  // this panel from its own selection. Requires x/y columns (always present for
+  // pointMap; centroids for polygonMap).
+  const getSelection = useRoomStore((state) => state.mosaic.getSelection);
+  const xColumn = bridge.x;
+  const yColumn = bridge.y;
+  const canSelect = Boolean(xColumn && yColumn && client);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectRect, setSelectRect] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const dragRef = useRef<{
+    startPx: [number, number];
+    startWorld: [number, number];
+  } | null>(null);
+  const lastWorldRef = useRef<[number, number] | null>(null);
+
+  const applySelection = useCallback(
+    (value: [[number, number], [number, number]] | null) => {
+      if (!client || !xColumn || !yColumn) {
+        return;
+      }
+      const selection = getSelection(selectionName, 'crossfilter');
+      if (!selection) {
+        return;
+      }
+      try {
+        selection.update(
+          clauseIntervals([column(xColumn), column(yColumn)], value, {
+            source: client,
+          }),
+        );
+      } catch (error) {
+        console.warn('[dbVisuals] deck-origin selection failed', error);
+      }
+    },
+    [client, getSelection, selectionName, xColumn, yColumn],
+  );
+
+  const handleDragStart = useCallback(
+    (info: PickingInfo) => {
+      if (!selectMode || !canSelect || !info.coordinate) {
+        return;
+      }
+      dragRef.current = {
+        startPx: [info.x, info.y],
+        startWorld: [info.coordinate[0], info.coordinate[1]],
+      };
+      lastWorldRef.current = [info.coordinate[0], info.coordinate[1]];
+      setSelectRect({left: info.x, top: info.y, width: 0, height: 0});
+    },
+    [canSelect, selectMode],
+  );
+
+  const handleDrag = useCallback((info: PickingInfo) => {
+    const drag = dragRef.current;
+    if (!drag) {
+      return;
+    }
+    if (info.coordinate) {
+      lastWorldRef.current = [info.coordinate[0], info.coordinate[1]];
+    }
+    setSelectRect({
+      left: Math.min(drag.startPx[0], info.x),
+      top: Math.min(drag.startPx[1], info.y),
+      width: Math.abs(info.x - drag.startPx[0]),
+      height: Math.abs(info.y - drag.startPx[1]),
+    });
+  }, []);
+
+  const handleDragEnd = useCallback(
+    (info: PickingInfo) => {
+      const drag = dragRef.current;
+      dragRef.current = null;
+      setSelectRect(null);
+      if (!drag) {
+        return;
+      }
+      const end = info.coordinate
+        ? ([info.coordinate[0], info.coordinate[1]] as [number, number])
+        : lastWorldRef.current;
+      const movedPx =
+        Math.abs(info.x - drag.startPx[0]) + Math.abs(info.y - drag.startPx[1]);
+      if (!end || movedPx < 4) {
+        // A click (no meaningful drag) clears this panel's selection.
+        applySelection(null);
+        return;
+      }
+      applySelection([
+        [
+          Math.min(drag.startWorld[0], end[0]),
+          Math.max(drag.startWorld[0], end[0]),
+        ],
+        [
+          Math.min(drag.startWorld[1], end[1]),
+          Math.max(drag.startWorld[1], end[1]),
+        ],
+      ]);
+    },
+    [applySelection],
+  );
+
+  const clearSelection = useCallback(() => {
+    applySelection(null);
+  }, [applySelection]);
   const layers = useMemo(() => {
     if (!layerData) {
       return [];
@@ -1649,14 +1778,53 @@ const BridgeGeoArrowDeckSlot: FC<{
   }
 
   return (
-    <DeckGL
-      views={CANVAS_ORTHOGRAPHIC_VIEW}
-      initialViewState={initialViewState}
-      controller
-      layers={layers}
-      width="100%"
-      height="100%"
-    />
+    <div className="relative h-full w-full">
+      <DeckGL
+        views={CANVAS_ORTHOGRAPHIC_VIEW}
+        initialViewState={initialViewState}
+        controller={{dragPan: !selectMode, doubleClickZoom: false}}
+        onDragStart={handleDragStart}
+        onDrag={handleDrag}
+        onDragEnd={handleDragEnd}
+        layers={layers}
+        width="100%"
+        height="100%"
+      />
+      {selectRect ? (
+        <div
+          className="pointer-events-none absolute border border-sky-500 bg-sky-500/20"
+          style={{
+            left: selectRect.left,
+            top: selectRect.top,
+            width: selectRect.width,
+            height: selectRect.height,
+          }}
+        />
+      ) : null}
+      {canSelect ? (
+        <div className="absolute left-2 top-2 flex gap-1">
+          <button
+            type="button"
+            onClick={() => setSelectMode((mode) => !mode)}
+            title="Drag a rectangle to filter linked Mosaic views"
+            className={`rounded px-2 py-0.5 text-xs shadow-sm ${
+              selectMode
+                ? 'bg-sky-600 text-white'
+                : 'bg-background/80 text-foreground border'
+            }`}
+          >
+            {selectMode ? 'Selecting' : 'Select'}
+          </button>
+          <button
+            type="button"
+            onClick={clearSelection}
+            className="bg-background/80 text-foreground rounded border px-2 py-0.5 text-xs shadow-sm"
+          >
+            Clear
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 };
 

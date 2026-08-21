@@ -13,8 +13,12 @@ Author: Timur Rizvanov [aut, cre]
 Maintainer: Timur Rizvanov <timurr@bu.edu>
 Description: Provides a browser-based SQL Rooms interface for interactive exploration
     of GiottoDB spatial databases. SQL Rooms enables SQL queries, R code execution,
-    and interactive visualizations using deck.gl and Mosaic. Serves as the distribution
-    point for rDeckgl and rMosaic visualization packages.
+    and interactive visualizations using deck.gl and Mosaic. Also provides a
+    spec-driven htmlwidget that bundles Mosaic and deck.gl in a single browser
+    scope, sharing one DuckDB-WASM coordinator and one selection so Mosaic views
+    cross-filter GPU-rendered scatterplots and GeoArrow polygon layers, with
+    server-side data hydration over Arrow IPC and GeoArrow. Complements the
+    'rDeckgl' and 'rMosaic' packages on CRAN.
 License: MIT + file LICENSE
 URL: https://github.com/dbverse-org/dbVisuals2, https://dbverse-org.github.io/dbVisuals2/
 BugReports: https://github.com/dbverse-org/dbVisuals2/issues
@@ -42,8 +46,7 @@ Suggests:
     rmarkdown
 Enhances:
     rDeckgl,
-    rMosaic,
-    Mosaic.gl
+    rMosaic
 Config/Needs/check:
     testthat,
     knitr,

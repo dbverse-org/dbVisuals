@@ -20,7 +20,8 @@ More information on acquiring API keys can be found at the following links:
 - Explore DuckDB, CSV, Parquet, and other tabular data sources.
 - Build interactive visualizations with Mosaic and deck.gl.
 - Experiment with AI-assisted chart and dashboard generation.
-- Connect with GiottoDB, rMosaic, rDeckgl, and mosaic.gl.
+- Connect with GiottoDB and the rMosaic / rDeckgl packages on CRAN.
+- Render linked Mosaic + deck.gl views from R with `mosaic_gl()`.
 
 ## Getting Started
 
@@ -104,5 +105,5 @@ stop_sqlrooms(dashboard)
 
 - [SQLRooms](https://sqlrooms.org/)
 - [GiottoDB](https://github.com/dbverse-org/GiottoDB)
-- [rMosaic](https://github.com/TiRizvanov/rMosaic)
-- [rDeckgl](https://github.com/TiRizvanov/rDeckgl)
+- [rMosaic](https://cran.r-project.org/package=rMosaic) (CRAN; development at https://github.com/TiRizvanov/rMosaic)
+- [rDeckgl](https://cran.r-project.org/package=rDeckgl) (CRAN; development at https://github.com/TiRizvanov/rDeckgl)

@@ -1,0 +1,68 @@
+{
+  "_comment": "Single source of truth for the shared deck.gl + Mosaic runtime versions across the dbverse visualization stack (dbVisuals2 frontend, the bundled viewer, rDeckgl, rMosaic). Enforced by frontend/sqlrooms-ai/scripts/check-viz-versions.mjs (npm run test:versions). See COMPATIBILITY.md.",
+  "policy": "The dbVisuals2 frontend is the contract anchor: its deck.gl and Mosaic versions are pinned transitively by the @sqlrooms release it depends on, so they cannot move freely. The R export targets (rDeckgl, rMosaic) and the combined widget (mosaic.gl) must satisfy these ranges so that specs authored through the dbVisuals2 LLM bridge render identically in the R htmlwidgets. When a @sqlrooms upgrade moves the frontend out of `contract`, update `contract` here and bump the R bundles in the same change.",
+  "anchor": "frontend/sqlrooms-ai",
+  "contract": {
+    "deck.gl": "^9.3.0",
+    "@geoarrow/deck.gl-layers": "0.3.2",
+    "@uwdata/mosaic": "^0.21.0",
+    "apache-arrow": ">=17.0.0 <22.0.0"
+  },
+  "manifests": {
+    "dbVisuals2-frontend": {
+      "kind": "npm-lock",
+      "path": "frontend/sqlrooms-ai/package-lock.json",
+      "severity": "hard",
+      "resolve": {
+        "deck.gl": "@deck.gl/core",
+        "@geoarrow/deck.gl-layers": "@geoarrow/deck.gl-layers",
+        "@uwdata/mosaic": "@uwdata/mosaic-core",
+        "apache-arrow": "apache-arrow"
+      }
+    },
+    "mosaic.gl": {
+      "kind": "npm-package",
+      "path": "r-package/inst/viewer-src/package.json",
+      "severity": "report",
+      "resolve": {
+        "deck.gl": "deck.gl",
+        "@geoarrow/deck.gl-layers": "@geoarrow/deck.gl-layers",
+        "@uwdata/mosaic": "@uwdata/vgplot",
+        "apache-arrow": "apache-arrow"
+      },
+      "_comment": "The linked Mosaic + deck.gl viewer, vendored into the R package. Was a separate mosaic.gl checkout; now in-repo so this check is self-contained."
+    },
+    "rDeckgl": {
+      "kind": "htmlwidget-yaml",
+      "path": "../../../deckgl/rDeckgl/inst/htmlwidgets/deckgl.yaml",
+      "severity": "report",
+      "resolve": {
+        "deck.gl": "deckgl-bundle"
+      },
+      "_comment": "rDeckgl is on CRAN. This path points at an optional local development checkout; absent on a fresh clone, which the check reports as skipped."
+    },
+    "rMosaic": {
+      "kind": "htmlwidget-yaml",
+      "path": "../../../Mosaic/rMosaic/inst/htmlwidgets/mosaic.yaml",
+      "severity": "report",
+      "resolve": {
+        "@uwdata/mosaic": "mosaic-bundle"
+      },
+      "_comment": "rMosaic is on CRAN. This path points at an optional local development checkout; absent on a fresh clone, which the check reports as skipped."
+    }
+  },
+  "knownDeviations": [
+    {
+      "package": "rDeckgl",
+      "dependency": "deck.gl",
+      "version": "9.1.15",
+      "reason": "rDeckgl's committed bundle predates the 9.3 anchor. Action: migrate rDeckgl to a viewer-src/package.json + vite build (as mosaic.gl already does), pin deck.gl to the contract range, and rebuild the bundle."
+    },
+    {
+      "package": "mosaic.gl",
+      "dependency": "@uwdata/mosaic",
+      "version": "0.25.0",
+      "reason": "mosaic.gl is ahead of the SQLRooms-pinned 0.21 anchor. Acceptable for the standalone widget (pristine upstream Mosaic), but align downward when SQLRooms upgrades Mosaic so exported specs stay byte-compatible."
+    }
+  ]
+}

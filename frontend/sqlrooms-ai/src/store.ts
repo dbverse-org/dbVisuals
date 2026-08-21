@@ -163,7 +163,7 @@ Canvas mode:
 - In standalone frontend previews without an R server, the fallback Giotto CSV demo tables are giotto_cells and giotto_cell_polygons.
 - Bridge pointMap renders as a direct deck.gl GeoArrowScatterplotLayer on an orthographic canvas. It does not use MapLibre or a basemap.
 - Bridge polygonMap renders cell boundaries with direct deck.gl GeoArrowPathLayer on an orthographic canvas. It does not use MapLibre or a basemap.
-- Bridge pointMap and polygonMap are currently static deck.gl views. Do not claim they are linked to the shared Mosaic brush yet.
+- Bridge pointMap and polygonMap are linked to the shared Mosaic brush in both directions. They filter live when any Mosaic view brushes (Mosaic -> deck), and a rectangular drag-select on the map (the panel's Select tool) writes the shared crossfilter selection to drive every linked Mosaic view (deck -> Mosaic). Deck-origin drag-select needs x/y columns: always present for pointMap, and supplied as centroids for polygonMap.
 - In raw/expert mode, Mosaic specs should use vgplot/Mosaic JSON specs that read DuckDB tables directly and use the shared "$brush" crossfilter selection when linking views.
 - A valid Mosaic histogram spec looks like {"plot":[{"mark":"rectY","data":{"from":"giotto_cells"},"x":{"bin":"total_expr","maxbins":25},"y":{"count":null}},{"select":"intervalX","as":"$brush"}]}. Do not use Vega-Lite "layer" or "encoding" for Mosaic specs.
 - A valid linked Mosaic density heatmap should use mark "raster", not "rectRaster", and should include an unfiltered context raster plus a filtered "$brush" raster: {"plot":[{"mark":"raster","data":{"from":"giotto_cells"},"x":"x","y":"y","fill":"density","bandwidth":0,"pixelSize":3},{"mark":"raster","data":{"from":"giotto_cells","filterBy":"$brush"},"x":"x","y":"y","fill":"density","bandwidth":0,"pixelSize":3},{"select":"intervalXY","as":"$brush"}],"colorScale":"sqrt","colorScheme":"viridis"}.
@@ -174,8 +174,8 @@ Canvas mode:
 - For Giotto point maps, use create_bridge_visualization with dataset {"table":"giotto_cells"} and view {"type":"pointMap","x":"x","y":"y","color":"total_expr"}.
 - For Giotto polygon maps, use create_bridge_visualization with dataset {"table":"giotto_cell_polygons","geometry":{"type":"polygon","column":"geom"}} and view {"type":"polygonMap","geometry":"geom","x":"x","y":"y","color":"total_expr"}.
 - Do not put _sqlroomsBinding under layer.data or inside getPosition/getPath objects.
-- Shared brush linking is native for Mosaic panels and matrixHeatmap panels with column metadata. deck.gl pointMap and polygonMap panels are static for now.
-- If the user asks for linked deck.gl views, explain that deck.gl brush linking is not implemented yet and keep those panels static.
+- Shared brush linking is native for Mosaic panels, matrixHeatmap panels with column metadata, and bridge pointMap/polygonMap panels. Bridge deck.gl panels both listen to the shared brush and can create it through rectangular drag-select.
+- If the user asks for linked deck.gl views, use create_bridge_visualization pointMap or polygonMap; they participate in crossfilter. Only raw deck_json (expert mode) panels remain static. Deck-origin selection is rectangular only (no lasso yet).
 - Keep SQL DuckDB-compatible. Use parquet, CSV, Arrow/GeoArrow, WKB/WKT, and tabular sources when appropriate.
 - Leverage the same design patterns as rMosaic, rDeckgl, mosaic.gl, and SQLRooms deck/mosaic examples: push filtering and aggregation into DuckDB, avoid large inline data arrays, and use shared "brush" selection for linked Mosaic views.
 - If the user asks to draw or populate a Canvas panel, use create_bridge_visualization for supported views. Do not use the chart tool for Canvas panels.
@@ -677,9 +677,9 @@ export const {roomStore, useRoomStore} = createRoomStore<RoomState>(
                   ? `${datasetCount} bridge dataset(s)`
                   : `${params.view.type} bridge spec`,
                 warning:
-                  params.view.type === 'pointMap' ||
-                  params.view.type === 'polygonMap'
-                    ? `${params.view.type} is static; deck.gl brush linking is not implemented yet.`
+                  params.view.type === 'polygonMap' &&
+                  !(params.view.x && params.view.y)
+                    ? 'polygonMap filters live on any Mosaic brush. Add x/y centroid columns to also enable rectangular drag-select from the map (deck -> Mosaic).'
                     : params.view.type === 'matrixHeatmap'
                       ? compiled.bridge?.type === 'matrixHeatmap' &&
                         compiled.bridge.columnFilterTable

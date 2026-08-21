@@ -1,0 +1,6 @@
+dependencies:
+  - name: mosaic_gl-bundle
+    version: 0.2.7
+    src: htmlwidgets/lib/mosaic_gl
+    script: mosaic_gl-bundle.js
+    stylesheet: mosaic_gl.css

@@ -154,6 +154,37 @@ assertFilteredMatrixHeatmapSql(
   ),
 );
 
+assertPointMapBridge(
+  compileBridgeSpec({
+    slot: 'A3',
+    title: 'Cell Centroids',
+    dataset: {
+      table: 'giotto_cells',
+      geometry: {type: 'point', x: 'x', y: 'y'},
+    },
+    view: {type: 'pointMap', x: 'x', y: 'y', color: 'total_expr'},
+    selection: 'brush',
+  }),
+);
+assertPolygonMapBridge(
+  compileBridgeSpec({
+    slot: 'B3',
+    title: 'Cell Boundaries',
+    dataset: {
+      table: 'giotto_cell_polygons',
+      geometry: {type: 'polygon', column: 'geom'},
+    },
+    view: {
+      type: 'polygonMap',
+      geometry: 'geom',
+      x: 'x',
+      y: 'y',
+      color: 'total_expr',
+    },
+    selection: 'brush',
+  }),
+);
+
 console.log('canvas bridge checks passed');
 
 function assertMosaicBrushSource(config, selector) {
@@ -167,6 +198,14 @@ function assertMosaicBrushSource(config, selector) {
   assert.ok(
     config.spec.plot.some((layer) => layer.data?.filterBy === '$brush'),
     'expected a filtered foreground layer',
+  );
+
+  // rMosaic / vgplot portability: the spec must be a Mosaic plot, never a
+  // Vega-Lite spec, so it round-trips into rMosaic::mosaic() unchanged.
+  assert.ok(Array.isArray(config.spec.plot), 'expected a vgplot plot array');
+  assert.ok(
+    !('encoding' in config.spec) && !('layer' in config.spec),
+    'Mosaic spec must not use Vega-Lite encoding/layer',
   );
 }
 
@@ -233,6 +272,30 @@ function assertDataTable(config) {
   assert.deepEqual(config.spec.columns, ['poly_ID', 'stack', 'agg_n']);
   assert.equal(config.spec.pageSize, 5);
   assert.equal(config.spec.selectionName, 'brush');
+}
+
+function assertPointMapBridge(config) {
+  assert.equal(config.renderer, 'deck_json');
+  assert.equal(config.linkedSelection, 'brush');
+  assert.equal(config.bridge.type, 'pointMap');
+  // Deck-origin rectangular selection needs the x/y columns on the bridge to
+  // build the Mosaic clauseIntervals predicate. Guard the linking contract.
+  assert.equal(config.bridge.x, 'x');
+  assert.equal(config.bridge.y, 'y');
+  const dataset = config.datasets[Object.keys(config.datasets)[0]];
+  assert.equal(dataset.geometryColumn, 'geom');
+  assert.equal(dataset.geometryEncodingHint, 'wkb');
+  assert.match(dataset.sqlQuery, /ST_AsWKB\(ST_Point/);
+}
+
+function assertPolygonMapBridge(config) {
+  assert.equal(config.renderer, 'deck_json');
+  assert.equal(config.linkedSelection, 'brush');
+  assert.equal(config.bridge.type, 'polygonMap');
+  assert.equal(config.bridge.geometryColumn, 'geom');
+  // x/y centroids enable deck-origin rectangular select for polygon panels.
+  assert.equal(config.bridge.x, 'x');
+  assert.equal(config.bridge.y, 'y');
 }
 
 function assertFilteredMatrixHeatmapSql(sql) {

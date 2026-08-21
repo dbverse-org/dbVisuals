@@ -24,3 +24,4 @@
 ^revdep$
 ^vignettes/Rplots\.pdf$
 ^frontend$
+^inst/viewer-src/node_modules$

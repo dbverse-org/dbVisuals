@@ -1,0 +1,199 @@
+---
+title: "Reproducing the Application Note figures"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Reproducing the Application Note figures}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = FALSE  # every chunk needs a local database or a browser
+)
+```
+
+This vignette covers the two things people ask for first: how to reproduce the
+visualizations published in the dbVisuals Application Note, and how to start each
+of the package's entry points.
+
+## Install
+
+Everything comes from CRAN.
+
+```{r}
+install.packages(c("DBI", "duckdb", "rDeckgl", "rMosaic"))
+
+# or let the package do it
+dbVisuals::install_dbvisuals_deps()
+```
+
+`dbVisuals` itself is not on CRAN yet:
+
+```{r}
+remotes::install_github("dbverse-org/dbVisuals2", subdir = "r-package")
+```
+
+## Entry point 1 — the SQLRooms browser workspace
+
+`launchBrowser()` starts a local server plus the packaged front end and opens a
+browser. Point it at a DuckDB file, or omit `db_path` for an empty in-memory
+database you can populate from the UI.
+
+```{r}
+library(dbVisuals)
+
+# empty in-memory database
+launchBrowser()
+
+# an existing DuckDB / GiottoDB file
+launchBrowser(db_path = "WTA_Preview_FFPE_Breast_Cancer_xenium.duckdb")
+
+# non-blocking, so the R session stays usable
+launchBrowser(db_path = "my.duckdb", daemon = TRUE)
+
+stop_sqlrooms()
+```
+
+Ports default to 3001 (server) and 5173 (front end); pass `port` and
+`frontend_port` to run several instances at once.
+
+Push a data frame from R into the running workspace:
+
+```{r}
+sqlrooms_export_table(mtcars, name = "cars")
+sqlrooms_register("cells", "SELECT * FROM gdb_cell_metadata")
+```
+
+## Entry point 2 — R-side linked views with `mosaic_gl()`
+
+`mosaic_gl()` is an htmlwidget: Mosaic views and GPU deck.gl layers in one
+browser scope, over a single DuckDB-WASM coordinator and a single shared
+selection, so brushing any panel filters all of them. No server, no browser
+workspace — it renders in the RStudio viewer, a knitted document, or Shiny.
+
+A self-contained example that needs no database:
+
+```{r}
+library(dbVisuals)
+
+pts <- data.frame(x = rnorm(5000), y = rnorm(5000))
+
+spec <- mgl_spec(
+  data = list(pts = mgl_data(type = "table", df = pts)),
+  plot = list(
+    list(mark = "dot", data = list(from = "pts"), x = "x", y = "y"),
+    mgl_deckgl(
+      id     = "map",
+      layers = list(list(
+        type = "scatterplot", data = list(from = "pts"),
+        x = "x", y = "y", radius = 3
+      ))
+    )
+  ),
+  width = 800, height = 500
+)
+
+mosaic_gl(spec)
+```
+
+Data reaches the browser as Arrow IPC, not JSON. `mgl_data(type = "table")`
+serializes a data frame; `mgl_data(type = "duckdb", query = ...)` keeps the data
+in the database and ships only the query result, which is what you want for
+anything large:
+
+```{r}
+con <- DBI::dbConnect(duckdb::duckdb(), "my.duckdb", read_only = TRUE)
+
+spec <- mgl_spec(
+  data = list(
+    cells = mgl_data(type = "duckdb",
+                     query = "SELECT x, y, leiden_clus FROM gdb_cell_metadata"),
+    polys = mgl_data(type = "duckdb",
+                     query = "SELECT ST_AsWKB(geom) AS geom FROM gdb_cell_polygons",
+                     format = "geoarrow")
+  ),
+  plot = list(mgl_deckgl(id = "insitu", layers = list(
+    list(type = "polygon",     data = list(from = "polys"), geometry = "geom"),
+    list(type = "scatterplot", data = list(from = "cells"), x = "x", y = "y")
+  )))
+)
+
+mosaic_gl(spec, con = con)
+```
+
+Passing `con` also lets the widget issue follow-up queries against your R-side
+DuckDB while you interact, instead of materializing everything up front. Any
+spatial / nanoarrow / geoarrow extensions already loaded on that connection are
+reused.
+
+In Shiny use the pair `mosaic_glOutput()` / `renderMosaic_gl()`.
+
+## Entry point 3 — export a spec back out
+
+Specs built in the browser workspace can be pulled back into R as an htmlwidget
+for `rMosaic` or `rDeckgl`:
+
+```{r}
+dbvisuals_export_htmlwidget(spec, output = "panel.html")
+```
+
+## Reproducing the published figures
+
+The in-situ panels come from `examples/` in this package. They need a GiottoDB
+DuckDB database holding cell polygons, cell centroids and transcript
+coordinates — the Application Note uses the 10x Genomics Atera In Situ Gene
+Expression, FFPE Human Breast Cancer preview dataset on the Xenium platform.
+
+| Script | Renders |
+| --- | --- |
+| `01_in_situ_with_marginals.R` | in-situ deck.gl view with linked Mosaic marginal histograms and a table |
+| `02_in_situ_zoom_overlay.R` | full-tissue view with a region-of-interest zoom inset |
+| `03_dimred_concat.R` | UMAP / PCA dimension pairs linked to a `leiden_clus` bar |
+| `04_in_situ_with_transcripts.R` | cell polygons, centroids and subcellular transcripts |
+| `05_in_situ_zoom_overlay_transcripts.R` | static ROI zoom inset with transcripts |
+| `06_in_situ_zoom_overlay_transcripts_interactive.R` | **the published panel** — interactive ROI selection |
+
+`03_dimred_concat.R` is the one that needs no database: it loads the Giotto mini
+Visium object from `GiottoData`, so it is the quickest way to check the install.
+
+```bash
+Rscript -e 'source(system.file("../examples/03_dimred_concat.R", package = "dbVisuals"))'
+```
+
+For the in-situ scripts, point the environment at your data and run them from an
+interactive session:
+
+```bash
+export DBLENS_DEMO_DB=/path/to/WTA_Preview_FFPE_Breast_Cancer_xenium.duckdb
+export DBLENS_TRANSCRIPT_FILE=/path/to/transcripts.parquet   # 04, 05, 06 only
+R -e 'source("examples/06_in_situ_zoom_overlay_transcripts_interactive.R")'
+```
+
+Neither variable is required to be set if the files sit in the working directory
+under their default names. Optional overrides: `DBLENS_TRANSCRIPT_TABLE` to read
+transcripts from a table inside the database instead of a file, and
+`DBLENS_ROI_CELL_ID` to centre the region of interest on a specific cell.
+
+Only script 06 is interactive: it starts a Shiny app where dragging the `select`
+control re-queries just the transcripts inside the chosen region, and `detail`
+picks the nested sub-region. Run it from an interactive R session — under
+`Rscript` it prints the widget instead of launching Shiny. The published panel is
+a full-window capture of the resulting three-view layout.
+
+## Rebuilding the widget bundle
+
+The pre-built browser bundle ships in `inst/htmlwidgets/`, so none of the above
+needs `npm`. To rebuild it from source:
+
+```bash
+cd inst/viewer-src
+npm install
+npm run build
+```
+
+Versions of deck.gl, Mosaic, GeoArrow and Arrow are held to one contract across
+this package and the front end; see `COMPATIBILITY.md` and `versions.json` at the
+repository root, checked by `npm run test:versions`.

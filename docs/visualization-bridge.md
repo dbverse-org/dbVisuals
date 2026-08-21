@@ -87,8 +87,8 @@ and metadata, and `giotto_cell_polygons` for real Vizgen cell-boundary WKB.
 | `density2d` | Mosaic raster | `MosaicSpecChart` | `rMosaic` | Linked with `$brush` |
 | `heatmap` | Mosaic raster | `MosaicSpecChart` | `rMosaic` | Linked with `$brush` |
 | `matrixHeatmap` | bounded matrix grid | direct React renderer backed by Mosaic query client | future | Column-linked via Mosaic brush when column metadata is available |
-| `pointMap` | deck.gl GeoArrow scatterplot | direct `DeckGL` | `rDeckgl` or `mosaic.gl` | Static for now |
-| `polygonMap` | deck.gl GeoArrow polygons | direct `DeckGL` | `rDeckgl` or `mosaic.gl` | Static for now |
+| `pointMap` | deck.gl GeoArrow scatterplot | direct `DeckGL` | `rDeckgl` or `mosaic.gl` | Linked both ways: filters on any Mosaic brush; rectangular drag-select drives Mosaic |
+| `polygonMap` | deck.gl GeoArrow polygons | direct `DeckGL` | `rDeckgl` or `mosaic.gl` | Linked: filters on any Mosaic brush; rectangular drag-select when x/y centroids are present |
 
 The current `heatmap` bridge view is a spatial or density heatmap over ordinary
 tabular columns. It should not be treated as a dbMatrix expression heatmap.
@@ -102,9 +102,12 @@ filter the matrix column metadata table first, then maps the selected labels to
 dbMatrix `j` indices before expanding the bounded grid. This links selected
 cells/columns only; row/gene filtering remains explicit through `rowNames`.
 
-Deck.gl point and polygon bridge layers currently render as static Arrow-backed
-views. A future linked implementation should follow the SQLRooms
-`deckgl-mosaic` example pattern without a MapLibre basemap:
+Deck.gl point and polygon bridge layers are linked to the shared Mosaic
+crossfilter selection in both directions. They follow the SQLRooms
+`deckgl-mosaic` example pattern without a MapLibre basemap.
+
+Mosaic -> deck (implemented): a brush in any Mosaic view filters the deck layer
+through a re-queried Arrow dataset.
 
 ```text
 Mosaic selection
@@ -114,9 +117,22 @@ Mosaic selection
   -> direct DeckGL GeoArrow layer
 ```
 
-That future linked implementation should be one-way at first: Mosaic brushes can
-filter bridge-created deck.gl layers, but deck.gl layers should not update the
-Mosaic brush in that phase.
+deck -> Mosaic (implemented): a rectangular drag-select on the map (the panel's
+Select tool) writes a Mosaic `clauseIntervals` clause keyed on the bridge x/y
+columns into the same crossfilter selection, so the deck panel drives every
+linked Mosaic view. The deck panel's own Mosaic client is the clause source, so
+crossfilter excludes the panel from its own selection.
+
+```text
+deck rectangle (world coords from info.coordinate)
+  -> clauseIntervals([x, y], [[x0,x1],[y0,y1]], {source: panelClient})
+  -> shared crossfilter Selection.update
+  -> every linked Mosaic view re-queries
+```
+
+Deck-origin drag-select needs x/y columns: always present for `pointMap`, and
+supplied as centroids for `polygonMap`. Lasso selection is not implemented yet;
+only rectangular selection is supported.
 
 ## Example Bridge Intents
 
@@ -445,6 +461,10 @@ Implementation details:
 
 ### Phase 3: Linked deck.gl GeoArrow Layers
 
+Status: implemented. Bridge `pointMap` and `polygonMap` panels listen to the
+shared Mosaic brush through `useMosaicClient` and re-render from filtered Arrow
+data (`BridgeGeoArrowDeckSlot` in `CanvasView.tsx`).
+
 Implement linked `pointMap` and `polygonMap` behavior using the SQLRooms
 `deckgl-mosaic` architecture.
 
@@ -530,9 +550,11 @@ Suggested implementation split:
 
 - Phase 4a: Mosaic-origin multi-view selection. All bridge-created Mosaic views
   can create the shared brush and update every linked Canvas panel.
-- Phase 4b: deck-origin rectangular selection. This is deferred until SQLRooms
-  exposes a clean selection update API, or until dbVisuals intentionally accepts
-  a dependency on lower-level Mosaic `Selection` internals.
+- Phase 4b: deck-origin rectangular selection. Implemented. Bridge `pointMap`
+  and `polygonMap` panels expose a Select tool that converts a rectangular drag
+  into a `clauseIntervals` clause on the shared crossfilter selection, using the
+  Mosaic-core clause builder (the clean selection update API this was waiting
+  for). Lasso selection remains out of scope.
 
 Success criteria:
 
@@ -645,8 +667,8 @@ Success criteria:
 - Do not create a general-purpose deck.gl grammar.
 - Do not let the AI modify Canvas layout.
 - Do not render R/htmlwidgets inside the React Canvas.
-- Do not claim deck.gl-origin or bidirectional deck.gl/Mosaic linking until
-  Phase 4b is complete.
+- Do not implement deck.gl lasso, hover linking, or deck-to-deck selection yet.
+  Deck-origin selection is rectangular only.
 - Do not use R/htmlwidgets as the live Canvas renderer.
 
 ## Future Test Plan

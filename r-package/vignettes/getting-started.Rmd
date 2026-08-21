@@ -190,13 +190,13 @@ install_dbvisuals_deps()
 Or manually:
 
 ```{r}
-install.packages(c("DBI", "duckdb", "shiny"))
-devtools::install_github("TiRizvanov/rDeckgl")
-devtools::install_github("TiRizvanov/rMosaic")
+install.packages(c("DBI", "duckdb", "shiny", "rDeckgl", "rMosaic"))
 ```
 
 ## Next Steps
 
+- Reproduce the published figures and see every entry point:
+  `vignette("reproducing-paper-figures", package = "dbVisuals")`
 - Explore the function reference: `?launchBrowser`
 - Learn about data export: `?sqlrooms_export_table`
 - Check out GiottoDB for spatial omics analysis: [GiottoDB documentation](https://github.com/dbverse-org/GiottoDB)
