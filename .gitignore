@@ -38,3 +38,7 @@ frontend/sqlrooms-ai/dist/
 docs/*
 !docs/visualization-bridge.md
 r-package/inst/doc
+
+# Local scratch copies of the example scripts. They need data that does not
+# ship and hardcode local paths; the public examples live in vignettes/.
+r-package/examples/

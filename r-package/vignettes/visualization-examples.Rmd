@@ -1,0 +1,299 @@
+---
+title: "Linked visualization examples"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Linked visualization examples}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+`mosaic_gl()` puts Mosaic views and GPU deck.gl layers in one browser scope over
+a single DuckDB-WASM coordinator and a single shared selection, so a brush in any
+panel filters every other panel.
+
+Each example below is self-contained: it builds its own data, so you can paste it
+straight into the console. The final chunk shows the same patterns against a real
+spatial database.
+
+```{r setup}
+library(dbVisuals)
+set.seed(1)
+```
+
+## The three pieces
+
+A spec is an ordinary R list shaped like a Mosaic spec, with two additions:
+
+* `mgl_data()` declares a data source — either an R data frame shipped as Arrow
+  IPC (`type = "table"`), or a query left in DuckDB (`type = "duckdb"`).
+* `mgl_deckgl()` declares a deck.gl panel as a Mosaic input, so it participates
+  in the same selection as the Mosaic marks around it.
+
+`params = list(sel = list(select = "crossfilter"))` creates the shared selection;
+panels write to it with a `select` clause and read from it with `filterBy`.
+
+## 1. Cross-filtered scatter with a marginal histogram
+
+A deck.gl scatterplot beside a Mosaic histogram. Brushing the histogram filters
+the points; the interval brush writes to `$sel` and the deck panel reads it.
+
+```{r ex1}
+cells <- data.frame(
+  cell_ID    = sprintf("cell_%04d", 1:4000),
+  x          = rnorm(4000, 0, 40),
+  y          = rnorm(4000, 0, 40),
+  total_expr = rpois(4000, 60)
+)
+
+spec1 <- mgl_spec(
+  meta   = list(title = "Points cross-filtered by expression"),
+  data   = list(cells = mgl_data(type = "table", df = cells)),
+  params = list(sel = list(select = "crossfilter")),
+  vconcat = list(
+    list(
+      plot = list(
+        list(
+          mark = "rectY",
+          data = list(from = "cells", filterBy = "$sel"),
+          x    = list(bin = "total_expr"),
+          y    = list(count = NULL),
+          fill = "#60a5fa"
+        ),
+        list(
+          select = "intervalX", as = "$sel",
+          brush  = list(stroke = "currentColor", fill = "transparent")
+        )
+      ),
+      width = 640, height = 110, marginLeft = 40
+    ),
+    mgl_deckgl(
+      id        = "spatial",
+      filter_by = "$sel",
+      width     = 640, height = 420,
+      layers = list(list(
+        `@@type`         = "ScatterplotLayer",
+        id               = "pts",
+        data             = "cells",
+        getPosition      = "@@=[x, y]",
+        getFillColor     = c(100L, 180L, 255L, 220L),
+        getRadius        = 2,
+        radiusUnits      = "pixels",
+        coordinateSystem = "@@#COORDINATE_SYSTEM.CARTESIAN",
+        positionFormat   = "XY",
+        pickable         = TRUE
+      ))
+    )
+  )
+)
+
+mosaic_gl(spec1, width = "100%", height = 560)
+```
+
+`getPosition = "@@=[x, y]"` and `coordinateSystem = "@@#COORDINATE_SYSTEM.CARTESIAN"`
+are the two conventions worth remembering: `@@=` marks a JavaScript accessor
+expression and `@@#` marks a deck.gl constant. Cartesian is what you want for
+tissue coordinates — the default is geographic.
+
+## 2. Two-sided marginals and a selection-driven table
+
+Adding a second brush on the other axis, and a table that lists whatever is
+currently selected. Both marginals and the table share the same `$sel`.
+
+```{r ex2}
+spec2 <- mgl_spec(
+  meta   = list(title = "Two-sided marginals + table"),
+  data   = list(cells = mgl_data(type = "table", df = cells)),
+  params = list(sel = list(select = "crossfilter")),
+  vconcat = list(
+    list(
+      plot = list(
+        list(mark = "rectY", data = list(from = "cells", filterBy = "$sel"),
+             x = list(bin = "x"), y = list(count = NULL), fill = "#60a5fa"),
+        list(select = "intervalX", as = "$sel",
+             brush = list(stroke = "currentColor", fill = "transparent"))
+      ),
+      width = 560, height = 90, yAxis = NULL, marginLeft = 40, marginBottom = 18
+    ),
+    list(hconcat = list(
+      mgl_deckgl(
+        id = "spatial", filter_by = "$sel", width = 460, height = 380,
+        layers = list(list(
+          `@@type`         = "ScatterplotLayer",
+          id               = "pts",
+          data             = "cells",
+          getPosition      = "@@=[x, y]",
+          getFillColor     = c(100L, 180L, 255L, 220L),
+          getRadius        = 2,
+          radiusUnits      = "pixels",
+          coordinateSystem = "@@#COORDINATE_SYSTEM.CARTESIAN",
+          positionFormat   = "XY"
+        ))
+      ),
+      list(
+        plot = list(
+          list(mark = "rectX", data = list(from = "cells", filterBy = "$sel"),
+               x = list(count = NULL), y = list(bin = "y"), fill = "#34d399"),
+          list(select = "intervalY", as = "$sel",
+               brush = list(stroke = "currentColor", fill = "transparent"))
+        ),
+        width = 100, height = 380, xAxis = NULL, marginBottom = 18
+      )
+    )),
+    list(
+      input = "table", from = "cells", filterBy = "$sel",
+      columns = c("cell_ID", "x", "y", "total_expr"),
+      width = 560, height = 200
+    )
+  )
+)
+
+mosaic_gl(spec2, width = "100%", height = 720)
+```
+
+## 3. Dimension-reduction pairs linked to a categorical bar
+
+`mgl_deckgl(concat = ...)` lays out several panes that share one layer
+definition, each pane binding different columns to `x` and `y`. Toggling a bar in
+the Mosaic bar chart filters every pane at once.
+
+```{r ex3}
+dimred <- data.frame(
+  cell_ID     = sprintf("cell_%04d", 1:2000),
+  leiden_clus = sample(sprintf("c%02d", 1:8), 2000, replace = TRUE),
+  umap_1 = rnorm(2000), umap_2 = rnorm(2000), umap_3 = rnorm(2000),
+  pca_1  = rnorm(2000), pca_2  = rnorm(2000), pca_3  = rnorm(2000)
+)
+
+spec3 <- mgl_spec(
+  meta   = list(title = "UMAP / PCA pairs linked to leiden_clus"),
+  data   = list(cells = mgl_data(type = "table", df = dimred)),
+  params = list(sel = list(select = "crossfilter")),
+  vconcat = list(
+    list(
+      plot = list(
+        list(mark = "barY", data = list(from = "cells", filterBy = "$sel"),
+             x = "leiden_clus", y = list(count = NULL), fill = "#60a5fa"),
+        list(select = "toggleX", as = "$sel")
+      ),
+      width = 700, height = 140, marginLeft = 40
+    ),
+    mgl_deckgl(
+      id = "umap", filter_by = "$sel", width = 700, height = 210,
+      concat = list(orient = "hconcat", panes = list(
+        list(x = "umap_1", y = "umap_2", title = "UMAP 1 vs 2"),
+        list(x = "umap_1", y = "umap_3", title = "UMAP 1 vs 3"),
+        list(x = "umap_2", y = "umap_3", title = "UMAP 2 vs 3")
+      )),
+      layers = list(list(
+        `@@type` = "ScatterplotLayer", id = "p", data = "cells",
+        getFillColor = c(100L, 180L, 255L, 220L),
+        getRadius = 3, radiusUnits = "pixels", opacity = 0.85
+      ))
+    ),
+    mgl_deckgl(
+      id = "pca", filter_by = "$sel", width = 700, height = 210,
+      concat = list(orient = "hconcat", panes = list(
+        list(x = "pca_1", y = "pca_2", title = "PC 1 vs 2"),
+        list(x = "pca_1", y = "pca_3", title = "PC 1 vs 3"),
+        list(x = "pca_2", y = "pca_3", title = "PC 2 vs 3")
+      )),
+      layers = list(list(
+        `@@type` = "ScatterplotLayer", id = "p", data = "cells",
+        getFillColor = c(245L, 158L, 11L, 220L),
+        getRadius = 3, radiusUnits = "pixels", opacity = 0.85
+      ))
+    )
+  )
+)
+
+mosaic_gl(spec3, width = "100%", height = 620)
+```
+
+## 4. Keeping data in DuckDB, and drawing polygons
+
+The examples above ship their data frames to the browser. For anything large,
+leave the data in DuckDB and send only the query: `mgl_data(type = "duckdb")`
+with a `con`. Polygons travel as GeoArrow rather than JSON, and are drawn with
+`GeoArrowPolygonLayer`.
+
+```{r ex4, eval = FALSE}
+con <- DBI::dbConnect(duckdb::duckdb(), "my.duckdb", read_only = TRUE)
+
+spec4 <- mgl_spec(
+  meta   = list(title = "In-situ view from a spatial database"),
+  data   = list(
+    cells = mgl_data(
+      type  = "duckdb",
+      query = "SELECT cell_ID, x, y, total_expr FROM gdb_cell_metadata"
+    ),
+    polys = mgl_data(
+      type   = "duckdb",
+      query  = "SELECT ST_AsWKB(geom) AS geometry FROM gdb_cell_polygons",
+      format = "geoarrow"
+    )
+  ),
+  params = list(sel = list(select = "crossfilter")),
+  vconcat = list(
+    mgl_deckgl(
+      id = "insitu", filter_by = "$sel", width = 700, height = 520,
+      layers = list(
+        list(
+          `@@type`           = "GeoArrowPolygonLayer",
+          id                 = "polys",
+          data               = "polys",
+          geometryColumn     = "geometry",
+          getFillColor       = c(157L, 78L, 221L, 60L),
+          stroked            = FALSE,
+          lineWidthMinPixels = 0.4,
+          coordinateSystem   = "@@#COORDINATE_SYSTEM.CARTESIAN",
+          positionFormat     = "XY"
+        ),
+        list(
+          `@@type`         = "ScatterplotLayer",
+          id               = "centroids",
+          data             = "cells",
+          getPosition      = "@@=[x, y]",
+          getFillColor     = c(30L, 41L, 59L, 200L),
+          getRadius        = 1.2,
+          radiusUnits      = "pixels",
+          coordinateSystem = "@@#COORDINATE_SYSTEM.CARTESIAN",
+          positionFormat   = "XY"
+        )
+      )
+    ),
+    list(
+      input = "table", from = "cells", filterBy = "$sel",
+      columns = c("cell_ID", "x", "y", "total_expr"),
+      width = 700, height = 200
+    )
+  )
+)
+
+mosaic_gl(spec4, con = con, width = "100%", height = 760)
+```
+
+Passing `con` also lets the widget issue follow-up queries against your R-side
+DuckDB as you interact, instead of materializing everything up front. Any
+spatial / nanoarrow / geoarrow extensions already loaded on that connection are
+reused.
+
+## In Shiny
+
+```{r shiny, eval = FALSE}
+ui <- shiny::fluidPage(mosaic_glOutput("viewer", height = "780px"))
+
+server <- function(input, output, session) {
+  output$viewer <- renderMosaic_gl(mosaic_gl(spec1))
+}
+
+shiny::shinyApp(ui, server)
+```
+
+## See also
+
+`vignette("reproducing-paper-figures", package = "dbVisuals")` for the published
+figures and the other entry points.

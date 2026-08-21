@@ -147,10 +147,16 @@ dbvisuals_export_htmlwidget(spec, output = "panel.html")
 
 ## Reproducing the published figures
 
-The in-situ panels come from `examples/` in this package. They need a GiottoDB
-DuckDB database holding cell polygons, cell centroids and transcript
-coordinates — the Application Note uses the 10x Genomics Atera In Situ Gene
-Expression, FFPE Human Breast Cancer preview dataset on the Xenium platform.
+The published in-situ panels need a GiottoDB DuckDB database holding cell
+polygons, cell centroids and transcript coordinates — the Application Note uses
+the 10x Genomics Atera In Situ Gene Expression, FFPE Human Breast Cancer preview
+dataset on the Xenium platform.
+
+The spec patterns behind them are documented, with runnable self-contained
+versions, in `vignette("visualization-examples", package = "dbVisuals")`. The
+scripts that produced the exact published panels are kept as local scratch
+copies under `r-package/examples/` in the source repository; they are gitignored
+and not installed, because they hardcode paths to data that does not ship.
 
 | Script | Renders |
 | --- | --- |
@@ -164,8 +170,7 @@ Expression, FFPE Human Breast Cancer preview dataset on the Xenium platform.
 `03_dimred_concat.R` is the one that needs no database: it loads the Giotto mini
 Visium object from `GiottoData`, so it is the quickest way to check the install.
 
-`examples/` is not installed with the package (it is `.Rbuildignore`d, since the
-scripts need data that does not ship), so run them from a clone of the
+These scripts are not installed with the package, so run them from a clone of the
 repository with `r-package/` as the working directory:
 
 ```r
@@ -204,6 +209,11 @@ cd inst/viewer-src
 npm install
 npm run build
 ```
+
+## See also
+
+`vignette("visualization-examples", package = "dbVisuals")` builds the same
+linked-view patterns from self-contained data, with no database required.
 
 Versions of deck.gl, Mosaic, GeoArrow and Arrow are held to one contract across
 this package and the front end; see `COMPATIBILITY.md` and `versions.json` at the
