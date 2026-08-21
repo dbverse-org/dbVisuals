@@ -51,18 +51,27 @@ launchBrowser()
 # an existing DuckDB / GiottoDB file
 launchBrowser(db_path = "WTA_Preview_FFPE_Breast_Cancer_xenium.duckdb")
 
-# non-blocking, so the R session stays usable
-launchBrowser(db_path = "my.duckdb", daemon = TRUE)
-
 stop_sqlrooms()
 ```
 
-Ports default to 3001 (server) and 5173 (front end); pass `port` and
-`frontend_port` to run several instances at once.
+The server always runs in a background process, so the R session stays usable
+either way; `daemon` is kept only for backwards compatibility. Ports default to
+3001 (server) and 5173 (front end). Only one workspace runs at a time — a second
+`launchBrowser()` replaces the first even on different ports — so use two R
+sessions if you need two databases side by side.
 
-Push a data frame from R into the running workspace:
+To push data from R into the running workspace, open your own connection to the
+same file you launched. `con` below is that connection; without it
+`dplyr::tbl()` has nothing to read and fails with "Invalid connection".
 
 ```{r}
+db <- file.path(tempdir(), "workspace.duckdb")
+con <- DBI::dbConnect(duckdb::duckdb(), db)
+DBI::dbWriteTable(con, "gdb_cell_metadata",
+                  data.frame(x = rnorm(200), y = rnorm(200)))
+
+launchBrowser(db_path = db, browser = FALSE)
+
 # a data frame -> a table in the project database
 sqlrooms_export_table("cars", mtcars)
 
@@ -70,6 +79,9 @@ sqlrooms_export_table("cars", mtcars)
 dplyr::tbl(con, "gdb_cell_metadata") |>
   dplyr::filter(x > 0) |>
   sqlrooms_register("cells_pos", x = _)
+
+stop_sqlrooms()
+DBI::dbDisconnect(con, shutdown = TRUE)
 ```
 
 ## Entry point 2 — R-side linked views with `mosaic_gl()`
