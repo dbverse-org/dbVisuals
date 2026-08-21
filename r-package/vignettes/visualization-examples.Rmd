@@ -253,7 +253,10 @@ spec4 <- mgl_spec(
     ),
     polys4 = mgl_data(
       type   = "duckdb",
-      query  = "SELECT ST_AsWKB(geom) AS geometry FROM cell_polygons",
+      # The key column matters: the WKB encoder needs a key (cell_ID /
+      # poly_ID / id) alongside the geometry, or it falls back to plain
+      # Arrow and the polygon layer is silently skipped.
+      query  = "SELECT cell_ID, ST_AsWKB(geom) AS geometry FROM cell_polygons",
       format = "geoarrow"
     )
   ),

@@ -87,18 +87,34 @@ library(dbVisuals)
 pts <- data.frame(x = rnorm(5000), y = rnorm(5000))
 
 spec <- mgl_spec(
-  data = list(pts = mgl_data(type = "table", df = pts)),
-  plot = list(
-    list(mark = "dot", data = list(from = "pts"), x = "x", y = "y"),
+  data   = list(pts = mgl_data(type = "table", df = pts)),
+  params = list(sel = list(select = "crossfilter")),
+  vconcat = list(
+    list(
+      plot = list(
+        list(mark = "dot", data = list(from = "pts", filterBy = "$sel"),
+             x = "x", y = "y"),
+        list(select = "intervalX", as = "$sel")
+      ),
+      width = 800, height = 160
+    ),
     mgl_deckgl(
-      id     = "map",
+      id        = "map",
+      filter_by = "$sel",
+      width     = 800, height = 460,
       layers = list(list(
-        type = "scatterplot", data = list(from = "pts"),
-        x = "x", y = "y", radius = 3
+        `@@type`         = "ScatterplotLayer",
+        id               = "pts",
+        data             = "pts",
+        getPosition      = "@@=[x, y]",
+        getFillColor     = c(100L, 180L, 255L, 220L),
+        getRadius        = 3,
+        radiusUnits      = "pixels",
+        coordinateSystem = "@@#COORDINATE_SYSTEM.CARTESIAN",
+        positionFormat   = "XY"
       ))
     )
-  ),
-  width = 800, height = 500
+  )
 )
 
 mosaic_gl(spec)
@@ -114,16 +130,47 @@ con <- DBI::dbConnect(duckdb::duckdb(), "my.duckdb", read_only = TRUE)
 
 spec <- mgl_spec(
   data = list(
-    cells = mgl_data(type = "duckdb",
-                     query = "SELECT x, y, leiden_clus FROM gdb_cell_metadata"),
-    polys = mgl_data(type = "duckdb",
-                     query = "SELECT ST_AsWKB(geom) AS geom FROM gdb_cell_polygons",
-                     format = "geoarrow")
+    cells = mgl_data(
+      type  = "duckdb",
+      query = "SELECT x, y, leiden_clus FROM gdb_cell_metadata"
+    ),
+    polys = mgl_data(
+      type   = "duckdb",
+      # Include the key column: the WKB polygon encoder needs both a key
+      # (cell_ID / poly_ID / id) and a geometry column, otherwise it falls
+      # back to plain Arrow and the polygon layer is dropped at render time.
+      query  = "SELECT cell_ID, ST_AsWKB(geom) AS geometry FROM gdb_cell_polygons",
+      format = "geoarrow"
+    )
   ),
-  plot = list(mgl_deckgl(id = "insitu", layers = list(
-    list(type = "polygon",     data = list(from = "polys"), geometry = "geom"),
-    list(type = "scatterplot", data = list(from = "cells"), x = "x", y = "y")
-  )))
+  vconcat = list(
+    mgl_deckgl(
+      id = "insitu", width = 800, height = 560,
+      layers = list(
+        list(
+          `@@type`         = "GeoArrowPolygonLayer",
+          id               = "polys",
+          data             = "polys",
+          geometryColumn   = "geometry",
+          getFillColor     = c(157L, 78L, 221L, 90L),
+          stroked          = FALSE,
+          coordinateSystem = "@@#COORDINATE_SYSTEM.CARTESIAN",
+          positionFormat   = "XY"
+        ),
+        list(
+          `@@type`         = "ScatterplotLayer",
+          id               = "cells",
+          data             = "cells",
+          getPosition      = "@@=[x, y]",
+          getFillColor     = c(30L, 41L, 59L, 200L),
+          getRadius        = 2,
+          radiusUnits      = "pixels",
+          coordinateSystem = "@@#COORDINATE_SYSTEM.CARTESIAN",
+          positionFormat   = "XY"
+        )
+      )
+    )
+  )
 )
 
 mosaic_gl(spec, con = con)
@@ -142,7 +189,12 @@ Specs built in the browser workspace can be pulled back into R as an htmlwidget
 for `rMosaic` or `rDeckgl`:
 
 ```{r}
-dbvisuals_export_htmlwidget(spec, output = "panel.html")
+dbvisuals_export_htmlwidget(
+  spec,
+  "panel.html",
+  engine = "rMosaic",
+  data   = list(pts = pts)
+)
 ```
 
 ## Reproducing the published figures

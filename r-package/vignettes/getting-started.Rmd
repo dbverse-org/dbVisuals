@@ -120,13 +120,18 @@ Execute R code directly in dbVisuals cells:
 library(GiottoDB)
 library(duckdb)
 
-# Query and analyze
+# Query and analyze. GiottoDB stores expression as an ijx triplet table
+# (i = feature, j = cell, x = value), so aggregate rather than treating it
+# as a dense matrix.
 con <- dbConnect(duckdb(), "my_spatial_data.duckdb")
-data <- dbReadTable(con, "gdb_cell_rna_raw")
-summary(data)
+result_df <- DBI::dbGetQuery(con, "
+  SELECT j AS cell, SUM(x) AS total_counts, COUNT(*) AS n_features
+  FROM gdb_cell_rna_raw
+  GROUP BY j
+  ORDER BY total_counts DESC")
+head(result_df)
 
 # Export results back to dbVisuals
-result_df <- some_analysis(data)
 sqlrooms_export_table("analysis_results", result_df)
 ```
 
@@ -149,25 +154,23 @@ dashboard <- launchBrowser(
 )
 ```
 
-### Multiple Instances
+### One instance at a time
 
-Run multiple dbVisuals instances with different databases:
+The running server and front end are tracked in a single package-level slot, so
+launching a second workspace stops the first one even when the ports differ:
+after the second `launchBrowser()` below, port 5173 is no longer served and
+`stop_sqlrooms(dashboard1)` reports "No running SQL Rooms processes found".
 
 ```{r}
-# Instance 1
-dashboard1 <- launchBrowser(
-  db_path = "project1.duckdb",
-  port = 3001,
-  frontend_port = 5173
-)
+dashboard1 <- launchBrowser(db_path = "project1.duckdb",
+                            port = 3001, frontend_port = 5173)
 
-# Instance 2 (different ports)
-dashboard2 <- launchBrowser(
-  db_path = "project2.duckdb",
-  port = 3002,
-  frontend_port = 5174
-)
+# This replaces dashboard1 rather than running alongside it.
+dashboard2 <- launchBrowser(db_path = "project2.duckdb",
+                            port = 3002, frontend_port = 5174)
 ```
+
+To work with two databases at once, run them from two separate R sessions.
 
 ## Troubleshooting
 
