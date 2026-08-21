@@ -26,7 +26,21 @@ export async function mountInstance({ container, payload, shiny }) {
   // context default.
   const mc = vg.coordinator();
   try {
-    mc.databaseConnector(await vg.wasmConnector());
+    // The coordinator is a process-wide singleton, so a fresh wasmConnector()
+    // per widget would replace the DuckDB-WASM instance the *earlier* widgets
+    // registered their tables into — on a page with several widgets (an Rmd
+    // vignette, a Quarto doc) only the last one would find its data. Create
+    // the connector once and reuse it; table names must then be unique across
+    // widgets on the page.
+    // Cache the *promise*, not the resolved connector: widgets on one page
+    // initialise concurrently, so a value-based guard would let all of them
+    // past the check before the first await settled and they would each build
+    // their own DuckDB-WASM anyway.
+    const g = typeof globalThis !== 'undefined' ? globalThis : window;
+    if (!g.__mosaic_glConnectorPromise) {
+      g.__mosaic_glConnectorPromise = vg.wasmConnector();
+    }
+    mc.databaseConnector(await g.__mosaic_glConnectorPromise);
   } catch (e) {
     status('Failed to start DuckDB-WASM: ' + (e.message || e));
     throw e;
