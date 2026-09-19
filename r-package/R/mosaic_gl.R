@@ -13,23 +13,58 @@
 #'   `mgl_data(type = "duckdb")` references. Pass an existing connection so
 #'   spatial / nanoarrow / geoarrow extensions you've already configured are
 #'   reused.
+#'   The connection is never disconnected by this package, in a Shiny session or
+#'   otherwise: the caller owns its lifetime.
 #' @param width,height  Widget dimensions.
 #' @param element_id    Optional DOM id.
+#' @param data_transport How query-backed sources (`mgl_data(type = "duckdb")`)
+#'   reach the browser. `"inline"` embeds each result set as base64 in the
+#'   widget JSON; `"file"` streams it into `data_dir` and the page fetches the
+#'   file by relative URL, so nothing is copied into the HTML; `"auto"` (the
+#'   default) picks `"file"` when `data_dir` is given and `"inline"` otherwise.
+#'   Both transports let DuckDB write the file itself (COPY ... FORMAT ARROWS
+#'   when the community 'nanoarrow' extension loads, else a record-batch stream
+#'   through `arrow::write_ipc_stream()`, else COPY ... FORMAT PARQUET), so the
+#'   rows are never materialised in R. Each envelope records the rung used in
+#'   `exportMethod`; `options(dbVisuals.export_methods = "copy_parquet")` (or
+#'   any subset of `"copy_arrows"`, `"record_batch_stream"`, `"copy_parquet"`)
+#'   restricts the ladder, mainly for diagnostics. `type = "table"` data frames
+#'   are always embedded inline because they already live in R.
+#' @param data_dir Directory that receives the exported files under
+#'   `data_transport = "file"`; when omitted a session temporary directory is
+#'   used. The files travel with the widget as an html dependency attachment,
+#'   so the RStudio Viewer, Shiny and
+#'   `htmlwidgets::saveWidget(selfcontained = FALSE)` all resolve them
+#'   (`selfcontained = TRUE` is not supported for file transport).
 #' @return An htmlwidget.
 #' @export
-mosaic_gl <- function(spec, con = NULL, width = NULL, height = NULL, element_id = NULL) {
+mosaic_gl <- function(spec, con = NULL, width = NULL, height = NULL, element_id = NULL,
+                      data_transport = c("auto", "inline", "file"), data_dir = NULL) {
   if (!inherits(spec, "mgl_spec") && !is.list(spec))
     stop("'spec' must be a list (use mgl_spec() to build one).")
+  data_transport <- match.arg(data_transport)
+  if (identical(data_transport, "auto"))
+    data_transport <- if (is.null(data_dir)) "inline" else "file"
+  if (identical(data_transport, "file")) {
+    if (is.null(data_dir)) data_dir <- .mgl_session_data_dir("dbvisuals-data-")
+    if (!is.character(data_dir) || length(data_dir) != 1L || !nzchar(data_dir))
+      stop("data_transport = 'file' requires 'data_dir' to be a single directory path.")
+    if (!dir.exists(data_dir)) dir.create(data_dir, recursive = TRUE)
+    data_dir <- normalizePath(data_dir, winslash = "/", mustWork = TRUE)
+  }
 
-  # Ensure standard extensions are loaded if a connection was provided
+  # Ensure standard extensions are loaded if a connection was provided. Only
+  # the spatial extension is installed on demand, because GeoArrow export
+  # depends on it; nanoarrow is loaded when present and skipped otherwise.
   if (!is.null(con)) {
-    for (sql in c("INSTALL spatial", "LOAD spatial",
-                  "INSTALL nanoarrow FROM community", "LOAD nanoarrow",
+    for (sql in c("INSTALL spatial", "LOAD spatial", "LOAD nanoarrow",
                   "CALL register_geoarrow_extensions()"))
       try(DBI::dbExecute(con, sql), silent = TRUE)
   }
 
-  data_envelopes <- .hydrate_data(spec, con = con)
+  data_envelopes <- .hydrate_data(spec, con = con,
+                                  data_transport = data_transport,
+                                  data_dir = data_dir)
 
   uid <- paste0("mosaic_gl_",
                 sprintf("%08x", sample.int(.Machine$integer.max, 1L)))
@@ -50,9 +85,28 @@ mosaic_gl <- function(spec, con = NULL, width = NULL, height = NULL, element_id 
     # `data: { from: "cells" }` resolve automatically.
     spec      = .strip_spec_data(spec),
     dataEnv   = unname(data_envelopes),
+    dataTransport = data_transport,
     widgetId  = uid,
     hasShiny  = !is.null(session)
   )
+
+  # File-transport payloads travel with the widget as an html dependency
+  # attachment, so the relative URL in each envelope resolves in the RStudio
+  # Viewer, in Shiny and after saveWidget() into any directory.
+  data_dependency <- NULL
+  if (identical(data_transport, "file")) {
+    urls <- unique(unlist(lapply(data_envelopes, function(e) e$url)))
+    urls <- urls[!is.na(urls) & nzchar(urls)]
+    urls <- urls[file.exists(file.path(data_dir, urls))]
+    if (length(urls))
+      data_dependency <- htmltools::htmlDependency(
+        name = paste0("mosaic-gl-data-", uid),
+        version = as.character(utils::packageVersion("dbVisuals")),
+        src = c(file = data_dir),
+        attachment = stats::setNames(urls, paste0("data", seq_along(urls))),
+        all_files = FALSE
+      )
+  }
 
   htmlwidgets::createWidget(
     name        = "mosaic_gl",
@@ -61,6 +115,7 @@ mosaic_gl <- function(spec, con = NULL, width = NULL, height = NULL, element_id 
     height      = height,
     package     = "dbVisuals",
     elementId   = element_id,
+    dependencies = if (is.null(data_dependency)) NULL else list(data_dependency),
     sizingPolicy = htmlwidgets::sizingPolicy(
       defaultWidth  = "100%",
       defaultHeight = 600,
@@ -102,6 +157,9 @@ renderMosaic_gl <- function(expr, env = parent.frame(), quoted = FALSE) {
 .install_shiny_query_handler <- function(session, uid, con) {
   input_name  <- paste0(uid, "_query")
   output_name <- paste0(uid, "_response")
+  # The connection is always the caller's: mosaic_gl() never opens one. It is
+  # kept only so the query observer can reach it, and is never disconnected
+  # here; closing it would break every later session in the same R process.
   if (is.null(session$userData$mosaic_glCons))
     session$userData$mosaic_glCons <- list()
   session$userData$mosaic_glCons[[uid]] <- con
@@ -136,11 +194,29 @@ renderMosaic_gl <- function(expr, env = parent.frame(), quoted = FALSE) {
     })
   }, ignoreNULL = TRUE)
 
+  # Drop the references when the session ends so they can be garbage collected,
+  # but leave the connections themselves open for their owner.
   if (is.null(session$userData$.mosaic_glCleanup)) {
     session$onSessionEnded(function() {
-      lapply(session$userData$mosaic_glCons,
-             function(c) try(DBI::dbDisconnect(c), silent = TRUE))
+      session$userData$mosaic_glCons <- NULL
     })
     session$userData$.mosaic_glCleanup <- TRUE
   }
+}
+
+# An auto-created data directory is scoped to the Shiny session that renders the
+# widget: one directory per session instead of one per render, removed when the
+# session ends. Outside Shiny it is a session temporary directory as before.
+# Re-rendering a widget still writes a new payload into that directory; the
+# previous one is removed with the directory when the session ends.
+.mgl_session_data_dir <- function(prefix) {
+  session <- if (requireNamespace("shiny", quietly = TRUE)) shiny::getDefaultReactiveDomain() else NULL
+  if (is.null(session)) return(tempfile(prefix))
+  existing <- session$userData$.mgl_data_dir
+  if (!is.null(existing) && dir.exists(existing)) return(existing)
+  path <- tempfile(prefix)
+  dir.create(path, recursive = TRUE, showWarnings = FALSE)
+  session$userData$.mgl_data_dir <- path
+  session$onSessionEnded(function() unlink(path, recursive = TRUE))
+  path
 }

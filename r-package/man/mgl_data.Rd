@@ -2,7 +2,7 @@
 % Please edit documentation in R/spec.R
 \name{mgl_data}
 \alias{mgl_data}
-\title{Declare a data source for a dbVisuals spec}
+\title{Declare a data source for a viewer spec}
 \usage{
 mgl_data(
   type = c("table", "duckdb"),
@@ -13,7 +13,7 @@ mgl_data(
 }
 \arguments{
 \item{type}{`"table"` for an in-memory data.frame or `"duckdb"` for a SQL
-query against the `con` passed to [dbVisuals()].}
+query against the `con` passed to [mosaic_gl()].}
 
 \item{df}{Data frame used when `type = "table"`.}
 

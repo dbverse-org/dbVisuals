@@ -21,7 +21,7 @@ of the package's entry points.
 
 ## Install
 
-Everything comes from CRAN.
+The rendering packages and database dependencies come from CRAN.
 
 ```{r}
 install.packages(c("DBI", "duckdb", "rDeckgl", "rMosaic"))
@@ -33,7 +33,7 @@ dbVisuals::install_dbvisuals_deps()
 `dbVisuals` itself is not on CRAN yet:
 
 ```{r}
-remotes::install_github("dbverse-org/dbVisuals2", subdir = "r-package")
+remotes::install_github("dbverse-org/dbVisuals2@paper-repro", subdir = "r-package")
 ```
 
 ## Entry point 1 — the SQLRooms browser workspace
@@ -216,26 +216,28 @@ polygons, cell centroids and transcript coordinates — the Application Note use
 the 10x Genomics Atera In Situ Gene Expression, FFPE Human Breast Cancer preview
 dataset on the Xenium platform.
 
-The spec patterns behind them are documented, with runnable self-contained
-versions, in `vignette("visualization-examples", package = "dbVisuals")`. The
-scripts that produced the exact published panels are kept as local scratch
-copies under `r-package/examples/` in the source repository; they are gitignored
-and not installed, because they hardcode paths to data that does not ship.
+The spec patterns are documented in `vignette("visualization-examples",
+package = "dbVisuals")`. The two source routes below are tracked on the
+`paper-repro` branch under `r-package/examples/`. They are repository examples,
+not installed R help examples; the large public input datasets are not bundled.
+Use the same branch for the installed package and cloned examples. These are
+R-package viewer demonstrations, not measurements of the Canvas/WASM application.
 
 | Script | Renders |
 | --- | --- |
-| `01_in_situ_with_marginals.R` | in-situ deck.gl view with linked Mosaic marginal histograms and a table |
-| `02_in_situ_zoom_overlay.R` | full-tissue view with a region-of-interest zoom inset |
 | `03_dimred_concat.R` | UMAP / PCA dimension pairs linked to a `leiden_clus` bar |
-| `04_in_situ_with_transcripts.R` | cell polygons, centroids and subcellular transcripts |
-| `05_in_situ_zoom_overlay_transcripts.R` | static ROI zoom inset with transcripts |
 | `06_in_situ_zoom_overlay_transcripts_interactive.R` | **the published panel** — interactive ROI selection |
 
-`03_dimred_concat.R` is the one that needs no database: it loads the Giotto mini
-Visium object from `GiottoData`, so it is the quickest way to check the install.
+`03_dimred_concat.R` needs the separately installed `Giotto` and `GiottoData`
+packages and downloads the mini Visium object. Install these using the Giotto
+Suite installation instructions before sourcing it. It needs no local database.
 
 These scripts are not installed with the package, so run them from a clone of the
 repository with `r-package/` as the working directory:
+
+```bash
+git clone --branch paper-repro https://github.com/dbverse-org/dbVisuals2.git
+```
 
 ```r
 setwd("path/to/dbVisuals2/r-package")
@@ -248,7 +250,7 @@ interactive session:
 ```r
 setwd("path/to/dbVisuals2/r-package")
 Sys.setenv(DBLENS_DEMO_DB = "/path/to/WTA_Preview_FFPE_Breast_Cancer_xenium.duckdb")
-Sys.setenv(DBLENS_TRANSCRIPT_FILE = "/path/to/transcripts.parquet")  # 04, 05, 06 only
+Sys.setenv(DBLENS_TRANSCRIPT_FILE = "/path/to/transcripts.parquet")
 source("examples/06_in_situ_zoom_overlay_transcripts_interactive.R")
 ```
 
@@ -257,11 +259,14 @@ under their default names. Optional overrides: `DBLENS_TRANSCRIPT_TABLE` to read
 transcripts from a table inside the database instead of a file, and
 `DBLENS_ROI_CELL_ID` to centre the region of interest on a specific cell.
 
-Only script 06 is interactive: it starts a Shiny app where dragging the `select`
+Script 06 starts a Shiny app where dragging the `select`
 control re-queries just the transcripts inside the chosen region, and `detail`
 picks the nested sub-region. Run it from an interactive R session — under
 `Rscript` it prints the widget instead of launching Shiny. The published panel is
 a full-window capture of the resulting three-view layout.
+Missing expression or cell-type annotations are displayed as unavailable, not
+replaced with simulated measurements. The panel demonstrates spatial navigation,
+not a new biological clustering result.
 
 ## Rebuilding the widget bundle
 
@@ -270,7 +275,7 @@ needs `npm`. To rebuild it from source:
 
 ```bash
 cd inst/viewer-src
-npm install
+npm ci
 npm run build
 ```
 
@@ -281,4 +286,5 @@ linked-view patterns from self-contained data, with no database required.
 
 Versions of deck.gl, Mosaic, GeoArrow and Arrow are held to one contract across
 this package and the front end; see `COMPATIBILITY.md` and `versions.json` at the
-repository root, checked by `npm run test:versions`.
+repository root. From that root, run
+`npm --prefix frontend/sqlrooms-ai run test:versions` to check the contract.

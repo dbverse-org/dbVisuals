@@ -13,24 +13,24 @@ sessions must pass `ask = FALSE` explicitly to proceed.}
 }
 \value{
 Invisibly returns `TRUE` if all installations succeeded, `FALSE`
-  otherwise (e.g., user declined, `remotes` not available, non-interactive).
+  otherwise (e.g., the user declined, or a non-interactive session).
 }
 \description{
 Installs all recommended dependencies for dbVisuals to enable full SQL Rooms
-functionality. This installs database packages (DBI, duckdb) from CRAN, and
-the optional visualization packages (rDeckgl, rMosaic) from GitHub.
+functionality. Everything comes from CRAN: the database packages (DBI,
+duckdb) and the visualization backends (rDeckgl, rMosaic).
 }
 \details{
-This function installs:
+This function installs, all from CRAN:
 \itemize{
-  \item CRAN packages: DBI, duckdb
-  \item GitHub packages: rDeckgl, rMosaic (from TiRizvanov)
+  \item DBI, duckdb
+  \item rDeckgl, rMosaic
 }
 
 The function checks which packages are already installed and only installs
-missing ones. Requires the 'remotes' package for GitHub installations. In
-interactive sessions the user is asked to confirm before any installation
-starts; in non-interactive sessions the function aborts with a message.
+missing ones. In interactive sessions the user is asked to confirm before any
+installation starts; in non-interactive sessions the function aborts with a
+message.
 }
 \examples{
 \dontrun{

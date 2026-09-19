@@ -4,15 +4,20 @@
 #   * type = "table"   — serialize the data.frame as Arrow IPC bytes (base64)
 #                        so the JS side can load it directly into DuckDB-WASM
 #                        and into JS Arrow tables for deck.gl binding.
-#   * type = "duckdb"  — execute the SQL against the supplied DuckDB connection,
-#                        return Arrow IPC bytes. For polygon geometry queries
-#                        using format = "geoarrow", prefer a compact WKB side
-#                        channel because apache-arrow JS currently drops large
-#                        Binary buffers for this browser/htmlwidget payload.
+#   * type = "duckdb"  — let DuckDB itself stream the SQL result into a file
+#                        (see the export ladder below); the rows are never
+#                        materialised in R. With data_transport = "file" the
+#                        file stays next to the page and the envelope carries
+#                        its URL; with "inline" it is base64-embedded. For
+#                        polygon geometry queries using format = "geoarrow",
+#                        prefer a compact WKB side channel because
+#                        apache-arrow JS currently drops large Binary buffers
+#                        for this browser/htmlwidget payload.
 #
 # Output for each data source is a small JSON-friendly list:
-#   list(name = "...", encoding = "arrow|geoarrow|json",
-#        bytes = "<base64>", duckdbName = "cells")
+#   list(name = "...", encoding = "arrow|parquet|geoarrow|wkb|json",
+#        bytes = "<base64>" | url = "<file name>", duckdbName = "cells",
+#        exportMethod = "copy_arrows|record_batch_stream|copy_parquet")
 # The JS side ingests these, registers Arrow tables, and creates DuckDB-WASM
 # tables for any source the user wants accessible to Mosaic.
 
@@ -247,41 +252,185 @@
   readBin(tf, "raw", n = file.info(tf)$size)
 }
 
+# ── Query export ladder ─────────────────────────────────────────────────────
+# Every rung streams the result set out of DuckDB into a file without ever
+# materialising it as an R data.frame or an R-side Arrow table: on a 5M-row
+# table DBI::dbGetQuery() costs about 525 MB of RSS and dbGetQueryArrow() +
+# write_nanoarrow() is slower still, so the browser payload path uses neither.
+#   1. COPY (query) TO 'stem.arrows' (FORMAT ARROWS)  -- needs the community
+#      'nanoarrow' extension, which is not published for every duckdb release
+#   2. dbSendQuery(arrow = TRUE) -> duckdb_fetch_record_batch() ->
+#      arrow::write_ipc_stream()                       -- needs the arrow package
+#   3. COPY (query) TO 'stem.parquet' (FORMAT PARQUET)  -- always available
+
+# One statement only. Deliberately conservative: a ';' anywhere other than the
+# end (including inside a string literal) is refused rather than parsed,
+# because the export ladder hands the text to several engines.
 #' @keywords internal
 #' @noRd
-.encode_duckdb_arrow <- function(con, query, name) {
-  if (!requireNamespace("arrow", quietly = TRUE))
-    stop("The 'arrow' package is required to export DuckDB Arrow streams.")
-
-  # Current duckdb implements DBI's Arrow query path; older releases exposed
-  # duckdb_fetch_arrow(..., stream = TRUE) instead.
-  tbl <- if ("dbGetQueryArrow" %in% getNamespaceExports("DBI")) {
-    tryCatch(DBI::dbGetQueryArrow(con, query), error = function(e) NULL)
-  } else {
-    NULL
-  }
-  if (is.null(tbl)) {
-    res <- DBI::dbSendQuery(con, query)
-    on.exit(DBI::dbClearResult(res), add = TRUE)
-    fetch_args <- names(formals(duckdb::duckdb_fetch_arrow))
-    tbl <- if ("stream" %in% fetch_args) {
-      duckdb::duckdb_fetch_arrow(res, stream = TRUE)
-    } else {
-      duckdb::duckdb_fetch_arrow(res)
-    }
-  }
-  raw_ <- arrow::write_to_raw(tbl, format = "stream")
-  list(
-    name       = name,
-    encoding   = "arrow",
-    bytes      = base64enc::base64encode(raw_),
-    duckdbName = name
-  )
+.single_statement <- function(query) {
+  trimmed <- sub("[[:space:];]+$", "", query)
+  if (grepl(";", trimmed, fixed = TRUE))
+    stop("a DuckDB data node must contain a single SQL statement; remove the ';' inside the query.",
+         call. = FALSE)
+  trimmed
 }
 
 #' @keywords internal
 #' @noRd
-.hydrate_data <- function(spec, con = NULL) {
+.export_query_file <- function(con, query, path_stem) {
+  if (!is.character(query) || length(query) != 1L || !nzchar(query))
+    stop("'query' must be a single non-empty SQL string.")
+  if (!is.character(path_stem) || length(path_stem) != 1L || !nzchar(path_stem))
+    stop("'path_stem' must be a single non-empty path.")
+  # COPY wraps the query in parentheses; a trailing semicolon would fail the
+  # first rung for a cosmetic reason. More than one statement is refused: the
+  # COPY rung could not parse it, and the record-batch rung would execute every
+  # statement on the caller's connection and export the last result.
+  query <- .single_statement(query)
+
+  arrows_path  <- paste0(path_stem, ".arrows")
+  parquet_path <- paste0(path_stem, ".parquet")
+  rungs <- list(
+    list(method = "copy_arrows", format = "arrow", path = arrows_path,
+         writer = function() {
+           .load_duckdb_nanoarrow(con)
+           DBI::dbExecute(con, sprintf("COPY (%s) TO '%s' (FORMAT ARROWS)",
+                                       query, .sql_string(arrows_path)))
+         }),
+    list(method = "record_batch_stream", format = "arrow", path = arrows_path,
+         writer = function() {
+           if (!requireNamespace("arrow", quietly = TRUE))
+             stop("the 'arrow' package is not installed")
+           .write_record_batch_stream(con, query, arrows_path)
+         }),
+    list(method = "copy_parquet", format = "parquet", path = parquet_path,
+         writer = function() {
+           DBI::dbExecute(con, sprintf("COPY (%s) TO '%s' (FORMAT PARQUET)",
+                                       query, .sql_string(parquet_path)))
+         })
+  )
+
+  # options(dbVisuals.export_methods = ...) restricts the ladder to a subset
+  # of "copy_arrows", "record_batch_stream", "copy_parquet", in ladder order.
+  # Meant for diagnostics and tests, e.g. forcing the Parquet rung.
+  allowed <- getOption("dbVisuals.export_methods",
+                       vapply(rungs, function(r) r$method, character(1L)))
+  rungs <- Filter(function(r) r$method %in% allowed, rungs)
+  if (!length(rungs))
+    stop("options(dbVisuals.export_methods) names no known export method; ",
+         "use any of 'copy_arrows', 'record_batch_stream', 'copy_parquet'.")
+
+  errors <- character()
+  for (rung in rungs) {
+    outcome <- .run_export_rung(rung$method, rung$format, rung$path, rung$writer)
+    if (is.list(outcome)) {
+      outcome$errors <- errors
+      return(outcome)
+    }
+    errors <- c(errors, outcome)
+  }
+  stop("Could not export the query to a file; every rung of the export ladder failed:\n  ",
+       paste(errors, collapse = "\n  "))
+}
+
+# Runs one rung and reports either the export record or a message naming the
+# rung and why it failed, so a fully failed ladder can explain itself.
+#' @keywords internal
+#' @noRd
+.run_export_rung <- function(method, format, path, writer) {
+  unlink(path)
+  failure <- tryCatch({ writer(); NULL }, error = function(e) conditionMessage(e))
+  if (is.null(failure) && file.exists(path) && file.info(path)$size > 0L)
+    return(list(path = path, format = format, method = method))
+  unlink(path)
+  paste0(method, ": ", failure %||% "no output file was written")
+}
+
+#' @keywords internal
+#' @noRd
+.write_record_batch_stream <- function(con, query, path) {
+  res <- DBI::dbSendQuery(con, query, arrow = TRUE)
+  on.exit(DBI::dbClearResult(res), add = TRUE)
+  reader <- duckdb::duckdb_fetch_record_batch(res)
+  arrow::write_ipc_stream(reader, path)
+  invisible(path)
+}
+
+# Load only: installing an extension mutates a caller-owned connection and
+# touches the network. Without the extension the export ladder moves on to the
+# next rung, as it does in rDeckgl and rMosaic.
+#' @keywords internal
+#' @noRd
+.load_duckdb_nanoarrow <- function(con) {
+  DBI::dbExecute(con, "LOAD nanoarrow")
+  invisible(TRUE)
+}
+
+#' @keywords internal
+#' @noRd
+.sql_string <- function(x) gsub("'", "''", x, fixed = TRUE)
+
+#' @keywords internal
+#' @noRd
+.safe_file_stem <- function(x) {
+  x <- gsub("[^A-Za-z0-9_.-]+", "_", x)
+  if (!nzchar(x)) "data" else x
+}
+
+# File transport: the exported file stays in `data_dir` and the envelope
+# carries only its file name, which the page fetches relative to itself.
+#' @keywords internal
+#' @noRd
+.encode_duckdb_file <- function(con, query, name, data_dir) {
+  stem <- tempfile(pattern = paste0(.safe_file_stem(name), "-"), tmpdir = data_dir)
+  exported <- .export_query_file(con, query, stem)
+  list(
+    name         = name,
+    encoding     = exported$format,
+    url          = basename(exported$path),
+    duckdbName   = name,
+    exportMethod = exported$method
+  )
+}
+
+# Inline transport: same ladder into a temporary file, then base64 into the
+# widget JSON. The bytes are read back as raw, never decoded into R.
+#' @keywords internal
+#' @noRd
+.encode_duckdb_inline <- function(con, query, name) {
+  stem <- tempfile(pattern = paste0("mosaic_gl-", .safe_file_stem(name), "-"))
+  exported <- .export_query_file(con, query, stem)
+  on.exit(unlink(exported$path), add = TRUE)
+  raw_ <- readBin(exported$path, "raw", n = file.info(exported$path)$size)
+  list(
+    name         = name,
+    encoding     = exported$format,
+    bytes        = base64enc::base64encode(raw_),
+    duckdbName   = name,
+    exportMethod = exported$method
+  )
+}
+
+# Kept under its historical name for the Shiny follow-up query handler; the
+# encoding is "arrow" unless only the Parquet rung succeeded.
+#' @keywords internal
+#' @noRd
+.encode_duckdb_arrow <- function(con, query, name) {
+  .encode_duckdb_inline(con, query, name)
+}
+
+#' @keywords internal
+#' @noRd
+.hydrate_data <- function(spec, con = NULL,
+                          data_transport = c("inline", "file"),
+                          data_dir = NULL) {
+  data_transport <- match.arg(data_transport)
+  if (identical(data_transport, "file")) {
+    if (!is.character(data_dir) || length(data_dir) != 1L || !nzchar(data_dir))
+      stop("data_transport = 'file' requires 'data_dir'.")
+    if (!dir.exists(data_dir)) dir.create(data_dir, recursive = TRUE)
+  }
   out <- list()
   for (nm in names(spec$data)) {
     node <- spec$data[[nm]]
@@ -295,7 +444,11 @@
       if (identical(fmt, "geoarrow")) {
         out[[nm]] <- .encode_duckdb_geoarrow(con, node$query, nm)
       } else if (identical(fmt, "arrow")) {
-        out[[nm]] <- .encode_duckdb_arrow(con, node$query, nm)
+        out[[nm]] <- if (identical(data_transport, "file")) {
+          .encode_duckdb_file(con, node$query, nm, data_dir)
+        } else {
+          .encode_duckdb_inline(con, node$query, nm)
+        }
       } else {
         # JSON fallback — bare rows
         df <- DBI::dbGetQuery(con, node$query)

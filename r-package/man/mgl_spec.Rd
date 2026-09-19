@@ -2,7 +2,7 @@
 % Please edit documentation in R/spec.R
 \name{mgl_spec}
 \alias{mgl_spec}
-\title{Construct a top-level Mosaic spec for dbVisuals}
+\title{Construct a top-level Mosaic spec for the viewer}
 \usage{
 mgl_spec(...)
 }

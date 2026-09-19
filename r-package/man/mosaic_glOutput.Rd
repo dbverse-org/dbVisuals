@@ -2,7 +2,7 @@
 % Please edit documentation in R/mosaic_gl.R
 \name{mosaic_glOutput}
 \alias{mosaic_glOutput}
-\title{Shiny output binding for dbVisuals}
+\title{Shiny output binding for the Mosaic + deck.gl viewer}
 \usage{
 mosaic_glOutput(outputId, width = "100\%", height = "600px")
 }
@@ -18,5 +18,5 @@ must be specified in \code{renderPlot()}. Note that, for height, using
 because of how height is computed with HTML/CSS.}
 }
 \description{
-Shiny output binding for dbVisuals
+Shiny output binding for the Mosaic + deck.gl viewer
 }

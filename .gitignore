@@ -41,6 +41,7 @@ docs/*
 !docs/visualization-bridge.md
 r-package/inst/doc
 
-# Local scratch copies of the example scripts. They need data that does not
-# ship and hardcode local paths; the public examples live in vignettes/.
-r-package/examples/
+# Publish only the two paper viewer routes; keep other local scratch files out.
+r-package/examples/*
+!r-package/examples/03_dimred_concat.R
+!r-package/examples/06_in_situ_zoom_overlay_transcripts_interactive.R

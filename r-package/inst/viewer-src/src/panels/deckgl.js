@@ -26,6 +26,11 @@ import {
 } from '@geoarrow/deck.gl-layers';
 import * as arrow from 'apache-arrow';
 import { fitBounds, sqlInList, pointInPolygon } from '../util.js';
+import { createLatestSelectionScheduler } from '../latest-selection.js';
+import {
+  scatterBaseBinaryFromTable, applyScatterFilter,
+  colorRowsFromAccessor, colorAccessorFields, clampByte,
+} from '../scatter-binary.js';
 
 const VIEWS = { OrthographicView, MapView, OrbitView, FirstPersonView };
 const LAYERS = {
@@ -167,25 +172,24 @@ async function mountSingle(board, opts, ctx) {
   const sel = opts.filterBy;
   const unsub = [];
   if (sel && typeof sel.addEventListener === 'function' && keyField) {
-    const rebuild = async () => {
+    const scheduler = createLatestSelectionScheduler({
+      query: where => queryFilteredKeys(ctx, resolved, keyField, where),
+      apply: keys => {
+        filteredKeys = keys || null;
+        version++;
+        deck.setProps({ layers: buildLayers() });
+      },
+      onError: e => console.warn('[mosaic_gl] filter query failed', e),
+    });
+    const rebuild = () => {
       const clauses = (sel.clauses ?? []).filter(c => c?.predicate != null);
-      if (!clauses.length) {
-        filteredKeys = null;
-      } else {
-        try {
-          const where = clauses.map(c => `(${c.predicate})`).join(' AND ');
-          filteredKeys = await queryFilteredKeys(ctx, resolved, keyField, where);
-          if (!filteredKeys) filteredKeys = null;
-        } catch (e) {
-          console.warn('[mosaic_gl] filter query failed', e);
-          return;
-        }
-      }
-      version++;
-      deck.setProps({ layers: buildLayers() });
+      // Snapshot predicates at event time, before an active query can finish.
+      scheduler.request(clauses.length
+        ? clauses.map(c => `(${c.predicate})`).join(' AND ') : null);
     };
     try { sel.addEventListener('value', rebuild); } catch (_) {}
     unsub.push(() => {
+      scheduler.dispose();
       try { sel.removeEventListener && sel.removeEventListener('value', rebuild); }
       catch (_) {}
     });
@@ -327,10 +331,11 @@ async function resolveLayerData(spec, ctx) {
   if (cached?.encoding === 'wkb' && cached?.wkbBytes && cached?.wkbOffsets) {
     return { spec, dataName, table: null, rows: null, wkb: cached };
   }
-  if (cached?.arrowTable) {
-    if (isGeoArrowLayer) {
-      return { spec, dataName, table: cached.arrowTable, rows: null };
-    }
+  // GeoArrow layers need the Table for its extension metadata; a plain
+  // ScatterplotLayer binds it as binary attributes (buildBinaryScatterplotLayer)
+  // so no per-row JS objects are ever materialised for it.
+  if (cached?.arrowTable && (isGeoArrowLayer || type === 'ScatterplotLayer')) {
+    return { spec, dataName, table: cached.arrowTable, rows: null };
   }
 
   // Fall back to coordinator query.
@@ -356,14 +361,37 @@ async function resolveLayerData(spec, ctx) {
 // Materialize an Arrow Table to plain JS row objects, pre-parsing any column
 // whose first value looks like a GeoJSON Polygon / MultiPolygon string into
 // the [[x,y],...] coords array PolygonLayer / SolidPolygonLayer expect.
+// DuckDB returns DECIMAL for ordinary aggregates such as SUM or AVG over
+// integers, and Arrow represents those as multi-word objects. Handing one to
+// deck.gl renders nothing useful, so convert what can be converted and drop the
+// rest, naming the column once so the cause is visible.
+function scalarValue(value, name, type, unconvertible) {
+  if (value === null || value === undefined) return value;
+  const kind = typeof value;
+  if (kind === 'number' || kind === 'string' || kind === 'boolean') return value;
+  if (kind === 'bigint') return Number(value);
+  if (ArrayBuffer.isView(value) || Array.isArray(value) || kind === 'function') return value;
+  const asNumber = Number(value);
+  if (Number.isFinite(asNumber)) return asNumber;
+  unconvertible.add(`${name} (${type})`);
+  return null;
+}
+
 function arrowToRows(tbl) {
   const n = tbl.numRows ?? tbl.length ?? 0;
   const fields = tbl.schema.fields.map(f => f.name);
+  const types = Object.fromEntries(fields.map(f => [f, String(tbl.getChild(f)?.type ?? 'unknown')]));
+  const unconvertible = new Set();
   const out = new Array(n);
   for (let i = 0; i < n; i++) {
     const row = {};
-    for (const f of fields) row[f] = tbl.getChild(f)?.get(i);
+    for (const f of fields) row[f] = scalarValue(tbl.getChild(f)?.get(i), f, types[f], unconvertible);
     out[i] = row;
+  }
+  if (unconvertible.size) {
+    console.warn('[mosaic_gl] dropped values of column(s) ' + [...unconvertible].join(', ') +
+      ': this Arrow type has no numeric representation the layer can use. ' +
+      'Cast the column in SQL, for example with CAST(... AS DOUBLE).');
   }
   if (n === 0) return out;
   // Detect GeoJSON polygon columns from a representative sample.
@@ -885,6 +913,15 @@ function buildLayer(resolved, filteredKeys, version, keyField) {
     console.warn('[mosaic_gl] polygon layer could not be converted to binary SolidPolygonLayer; skipping GeoArrowPolygonLayer fallback to avoid runtime crash.', spec.id);
     return null;
   }
+  if (spec['@@type'] === 'ScatterplotLayer' && resolved.table && !resolved.rows) {
+    const binaryLayer = buildBinaryScatterplotLayer(resolved, filteredKeys, version, keyField);
+    if (binaryLayer) return binaryLayer;
+    // Accessors the binary converter cannot express (functions, unusual
+    // forms) take the original row-object path instead of losing the layer.
+    console.warn('[mosaic_gl] scatter layer falls back to row objects', spec.id);
+    resolved.rows = arrowToRows(resolved.table);
+    resolved.table = null;
+  }
   const Ctor = LAYERS[spec['@@type']];
   if (!Ctor) {
     console.warn('[mosaic_gl] unknown layer type', spec['@@type']);
@@ -947,6 +984,53 @@ function buildLayer(resolved, filteredKeys, version, keyField) {
   }
   try { return new Ctor(props); }
   catch (e) { console.warn('[mosaic_gl] layer build failed', spec['@@type'], e); return null; }
+}
+
+function buildBinaryScatterplotLayer(resolved, filteredKeys, version, keyField) {
+  const spec = resolved.spec;
+  const table = resolved.table;
+  // Positions, base colours and radii depend only on the table, so they are
+  // cached on the resolved entry; each selection rebuilds just the alpha mask.
+  if (!resolved.scatterBinary || resolved.scatterBinary.table !== table) {
+    const base = scatterBaseBinaryFromTable(table, spec);
+    if (!base) {
+      console.warn('[mosaic_gl] scatter binary conversion failed', {
+        layer: spec.id,
+        rows: table?.numRows ?? table?.length,
+        getPosition: spec.getPosition,
+        getFillColor: spec.getFillColor,
+        getRadius: spec.getRadius,
+      });
+      return null;
+    }
+    resolved.scatterBinary = { table, base };
+    console.info('[mosaic_gl] scatter binary layer ready', {
+      layer: spec.id,
+      rows: base.length,
+      radiusColumn: base.radius?.field ?? null,
+    });
+  }
+  const base = resolved.scatterBinary.base;
+  const data = applyScatterFilter(base, table, keyField, filteredKeys);
+
+  const props = {};
+  for (const [k, v] of Object.entries(spec)) {
+    if (k === '@@type' || k === 'data' || k === '_pane' ||
+        k === 'getPosition' || k === 'getFillColor') continue;
+    if (k === 'getRadius' && base.radii) continue;
+    props[k] = expandValue(v);
+  }
+  return new ScatterplotLayer({
+    ...props,
+    id: spec.id || resolved.dataName || 'scatter',
+    data,
+    updateTriggers: {
+      ...(props.updateTriggers || {}),
+      getPosition: version,
+      getFillColor: version,
+      getRadius: version,
+    },
+  });
 }
 
 function buildBinarySolidPolygonLayer(resolved, filteredKeys, version, keyField) {
@@ -1080,33 +1164,8 @@ function polygonColorBufferFromWKB(wkb, accessor, binary, keyField, filteredKeys
   return expandFeatureColorsToVertices(filtered, binary.startIndices);
 }
 
-function colorRowsFromAccessor(table, accessor, n) {
-  const fields = colorAccessorFields(accessor);
-  const out = new Uint8Array(n * 4);
-  if (fields) {
-    const cols = fields.map(f => table.getChild(f));
-    if (cols.some(c => !c)) return null;
-    for (let i = 0; i < n; i++) {
-      const j = i * 4;
-      out[j] = clampByte(cols[0].get(i));
-      out[j + 1] = clampByte(cols[1].get(i));
-      out[j + 2] = clampByte(cols[2].get(i));
-      out[j + 3] = cols[3] ? clampByte(cols[3].get(i)) : 180;
-    }
-    return out;
-  }
-  if (Array.isArray(accessor)) {
-    for (let i = 0; i < n; i++) {
-      const j = i * 4;
-      out[j] = clampByte(accessor[0]);
-      out[j + 1] = clampByte(accessor[1]);
-      out[j + 2] = clampByte(accessor[2]);
-      out[j + 3] = clampByte(accessor[3] ?? 180);
-    }
-    return out;
-  }
-  return null;
-}
+// colorRowsFromAccessor (per-feature RGBA from a table) now lives in
+// ../scatter-binary.js and is shared with the scatter path.
 
 function colorRowsFromConstantAccessor(accessor, n) {
   if (!Array.isArray(accessor)) return null;
@@ -1140,11 +1199,6 @@ function colorRowsFromWKBAccessor(wkb, accessor, n) {
   return colorRowsFromConstantAccessor(accessor, n);
 }
 
-function colorAccessorFields(accessor) {
-  if (typeof accessor !== 'string' || !accessor.startsWith('@@=[')) return null;
-  return accessor.slice(3).trim().slice(1, -1).split(',').map(s => s.trim()).filter(Boolean);
-}
-
 function expandFeatureColorsToVertices(colors, startIndices) {
   const numVerts = startIndices[startIndices.length - 1];
   const out = new Uint8Array(numVerts * 4);
@@ -1159,12 +1213,6 @@ function expandFeatureColorsToVertices(colors, startIndices) {
     }
   }
   return out;
-}
-
-function clampByte(v) {
-  v = Number(v);
-  if (!Number.isFinite(v)) return 0;
-  return Math.max(0, Math.min(255, Math.round(v)));
 }
 
 function keyFromAccessor(obj, accessor, keyField) {

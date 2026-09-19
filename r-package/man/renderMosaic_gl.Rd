@@ -2,7 +2,7 @@
 % Please edit documentation in R/mosaic_gl.R
 \name{renderMosaic_gl}
 \alias{renderMosaic_gl}
-\title{Shiny render expression for dbVisuals}
+\title{Shiny render expression for the Mosaic + deck.gl viewer}
 \usage{
 renderMosaic_gl(expr, env = parent.frame(), quoted = FALSE)
 }
@@ -20,5 +20,5 @@ would like to use its expression as a value for \code{expr}, then you must set
 \code{quoted} to \code{TRUE}.}
 }
 \description{
-Shiny render expression for dbVisuals
+Shiny render expression for the Mosaic + deck.gl viewer
 }

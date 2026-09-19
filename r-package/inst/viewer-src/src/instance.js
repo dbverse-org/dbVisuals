@@ -15,7 +15,7 @@ import { decodeBase64, decodeUint32Base64 } from './util.js';
 import { mountDeckglInto } from './panels/deckgl.js';
 
 export async function mountInstance({ container, payload, shiny }) {
-  console.info('[mosaic_gl] bundle 0.2.7: additive lasso + clear active');
+  console.info('[mosaic_gl] bundle 0.2.8: file transport + binary scatter');
   container.classList.add('mosaic_gl-root');
   container.innerHTML = '';
   const status = banner(container, 'initialising DuckDB-WASM…');
@@ -52,7 +52,7 @@ export async function mountInstance({ container, payload, shiny }) {
   // here but is lost when DuckDB-WASM ingests the buffer, so the deck.gl panel
   // needs the in-memory copy to render polygon layers correctly.
   status('loading data…');
-  const dataRegistry = {};   // name -> { arrowTable, encoding }
+  const dataRegistry = {};   // name -> { arrowTable, encoding, transport }
   if (typeof window !== 'undefined') window.__mosaic_glData = dataRegistry;
   for (const env of payload.dataEnv || []) {
     if (env.encoding === 'wkb') {
@@ -73,42 +73,81 @@ export async function mountInstance({ container, payload, shiny }) {
       });
       continue;
     }
-    if (env.encoding !== 'arrow' && env.encoding !== 'geoarrow') continue;
-    const bytes = decodeBase64(env.bytes);
+    if (env.encoding !== 'arrow' && env.encoding !== 'geoarrow' &&
+        env.encoding !== 'parquet') continue;
+    // File transport: the R side exported the query straight from DuckDB
+    // into a file next to the page, so the envelope carries a URL and no
+    // bytes. A failed fetch is fatal for the widget and must stay visible.
+    const transport = typeof env.url === 'string' && env.bytes == null ? 'url' : 'inline';
+    let bytes;
+    try {
+      bytes = await envelopeBytes(env);
+    } catch (e) {
+      status(`Failed to load data '${env.name}': ${e.message || e}`);
+      console.error('[mosaic_gl] data envelope load failed', env.name, env.url, e);
+      throw e;
+    }
+    const meta = {
+      encoding: env.encoding,
+      transport,
+      url: transport === 'url' ? env.url : null,
+      exportMethod: env.exportMethod || null,
+    };
+    if (env.encoding === 'parquet') {
+      try {
+        const arrowTable = await registerParquetTable(mc, env.name, bytes);
+        dataRegistry[env.name] = { arrowTable, ...meta };
+      } catch (e) {
+        status(`Failed to register Parquet data '${env.name}': ${e.message || e}`);
+        console.error('[mosaic_gl] parquet registration failed', env.name, e);
+        throw e;
+      }
+      console.info('[mosaic_gl] parquet envelope loaded', {
+        name: env.name, transport, rows: dataRegistry[env.name].arrowTable?.numRows,
+      });
+      continue;
+    }
     try {
       dataRegistry[env.name] = {
         arrowTable: tableFromIPC(bytes),
-        encoding:   env.encoding,
+        ...meta,
       };
     } catch (e) {
       console.warn('[mosaic_gl] could not parse Arrow IPC for', env.name, e);
     }
     // Also try to register in DuckDB-WASM so Mosaic plots / tables can SELECT.
-    let ok = false;
+    let insertError = null;
     try {
       const conn = await mc.databaseConnector().getConnection();
-      await conn.insertArrowFromIPCStream(bytes, {
+      // DuckDB transfers (detaches) its input buffer to the worker. Arrow
+      // vectors above are zero-copy views, so transfer a separate copy and
+      // retain the original for cached geometry/coordinates and fallback.
+      await conn.insertArrowFromIPCStream(bytes.slice(), {
         name: env.name, create: true, schema: 'main',
       });
-      ok = true;
-    } catch (_) {}
-    if (!ok) {
+    } catch (e1) {
+      insertError = e1;
+    }
+    if (insertError) {
       try {
         await mc.exec(
           `CREATE OR REPLACE TABLE ${env.name} AS
              SELECT * FROM read_ipc(?::BLOB)`,
           [bytes],
         );
-        ok = true;
       } catch (e2) {
         // For GeoArrow data the DuckDB-WASM insert can fail if the geometry
         // column uses an extension type WASM doesn't understand — that's OK,
         // deck.gl uses the in-memory Arrow Table directly. Only warn for
         // plain arrow envelopes.
         if (env.encoding !== 'geoarrow')
-          console.warn('[mosaic_gl] failed to register table', env.name, e2);
+          console.warn('[mosaic_gl] failed to register table', env.name,
+                       { insertArrowFromIPCStream: insertError, read_ipc: e2 });
       }
     }
+    console.info('[mosaic_gl] arrow envelope loaded', {
+      name: env.name, transport, rows: dataRegistry[env.name]?.arrowTable?.numRows,
+    });
   }
 
   const pendingServerQueries = new Map();
@@ -231,6 +270,91 @@ export async function mountInstance({ container, payload, shiny }) {
     },
     params,
   };
+}
+
+// Bytes of a data envelope: inline base64, or a fetch of the URL the R side
+// wrote next to the page (relative URLs resolve against the document).
+// A file-transport payload travels with the widget as an html dependency
+// attachment, so the page may serve it from the dependency directory rather
+// than beside the HTML. Prefer the attachment link; fall back to the name.
+function resolveAttachmentUrl(name) {
+  if (typeof name !== 'string' || name === '') return name;
+  if (/^([a-z]+:)?\/\//i.test(name) || name.startsWith('data:')) return name;
+  try {
+    const links = document.querySelectorAll('link[rel="attachment"]');
+    for (const link of links) {
+      const href = link.getAttribute('href');
+      if (!href) continue;
+      if (href === name || href.endsWith('/' + name)) return href;
+    }
+  } catch (e) {
+    // document may be unavailable outside a browser
+  }
+    // saveWidget(selfcontained = TRUE) inlines attachments as data: URIs, which
+    // cannot be matched by name, so the page would fall back to the bare file
+    // name and 404. Say so rather than letting the layer render empty.
+    try {
+      const inlined = [...document.querySelectorAll('link[rel="attachment"]')]
+        .some(link => (link.getAttribute('href') || '').startsWith('data:'));
+      if (inlined) {
+        console.error('[mosaic_gl] "' + name + '" cannot be resolved because this page ' +
+          'was saved with selfcontained = TRUE, which inlines the data file as a ' +
+          'data: URI. Save with htmlwidgets::saveWidget(selfcontained = FALSE) ' +
+          'for file transport.');
+      }
+    } catch (e) {
+      // document may be unavailable outside a browser
+    }
+  return name;
+}
+
+async function envelopeBytes(env) {
+  if (typeof env.bytes === 'string') return decodeBase64(env.bytes);
+  if (typeof env.url === 'string') {
+    const response = await fetch(resolveAttachmentUrl(env.url));
+    if (!response.ok) {
+      throw new Error(`fetch ${env.url} failed: HTTP ${response.status}`);
+    }
+    return new Uint8Array(await response.arrayBuffer());
+  }
+  throw new Error(`data envelope '${env.name}' carries neither bytes nor url`);
+}
+
+// Register a Parquet payload as a DuckDB-WASM table and return the Arrow
+// table for the deck.gl registry. registerFileBuffer transfers the buffer to
+// the worker, so `bytes` must not be reused afterwards.
+async function registerParquetTable(mc, name, bytes) {
+  const connector = mc.databaseConnector();
+  const conn = await connector.getConnection();
+  const db = typeof connector.getDuckDB === 'function'
+    ? await connector.getDuckDB()
+    : (connector._db || conn._bindings || null);
+  if (!db || typeof db.registerFileBuffer !== 'function') {
+    throw new Error('DuckDB-WASM instance does not expose registerFileBuffer()');
+  }
+  // The source name comes from the user's mgl_data() call, so it is quoted in
+  // both positions: a name with a space, a hyphen, a quote or a reserved word
+  // would otherwise break only the Parquet rung of the export ladder. The
+  // registered file name is unique so two widgets sharing a table name on one
+  // page cannot overwrite each other's buffer.
+  const quoteIdentifier = (value) => '"' + String(value).replace(/"/g, '""') + '"';
+  const quoteLiteral = (value) => "'" + String(value).replace(/'/g, "''") + "'";
+  const fileName = `${name}-${Math.random().toString(36).slice(2, 10)}.parquet`;
+  const table = quoteIdentifier(name);
+  await db.registerFileBuffer(fileName, bytes);
+  try {
+    await conn.query(
+      `CREATE OR REPLACE TABLE ${table} AS SELECT * FROM read_parquet(${quoteLiteral(fileName)})`);
+    // duckdb-wasm's own apache-arrow copy; the registry only relies on
+    // numRows / schema.fields / getChild, so any Arrow implementation works.
+    return await conn.query(`SELECT * FROM ${table}`);
+  } finally {
+    try {
+      await db.dropFile(fileName);
+    } catch (e) {
+      console.warn('[mosaic_gl] could not drop parquet buffer', fileName, e);
+    }
+  }
 }
 
 function banner(container, text) {
