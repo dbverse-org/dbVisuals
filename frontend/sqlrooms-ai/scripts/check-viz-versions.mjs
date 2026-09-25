@@ -1,10 +1,8 @@
 #!/usr/bin/env node
-// Verifies that the shared deck.gl + Mosaic runtime versions stay aligned across
-// the dbverse visualization stack, against the contract declared in
-// <repo>/versions.json. The dbVisuals2 frontend is the hard-gated anchor; the R
-// export targets (rDeckgl, rMosaic) and mosaic.gl are reported and gated against
-// regressions, with a known-deviation ledger so existing drift stays visible
-// without breaking CI. Sibling packages that are not checked out are skipped.
+// Checks declared versions against <repo>/versions.json. The frontend is the
+// hard-gated anchor; companions and mosaic.gl report known differences.
+// YAML labels are not runtime verification or an export-compatibility contract.
+// Sibling packages that are not checked out are skipped.
 //
 // Zero runtime dependencies (Node builtins only) so it runs in CI before any
 // install step. Run with: npm run test:versions
@@ -175,7 +173,7 @@ const widths = [0, 1, 2, 3].map((i) =>
   Math.max(...rows.map((r) => String(r[i]).length)),
 );
 const pad = (s, w) => String(s).padEnd(w);
-console.log(`\nViz runtime version parity (contract anchor: ${spec.anchor})\n`);
+console.log(`\nViz dependency manifest inventory (anchor: ${spec.anchor})\n`);
 for (const r of rows) {
   const status =
     r[3] === 'ok'
@@ -197,7 +195,7 @@ console.log(
 );
 
 if (warnings > 0) {
-  console.log('Known deviations (tracked tech-debt, see versions.json):');
+  console.log('Known manifest differences (see versions.json):');
   for (const d of knownDeviations) {
     console.log(`  - ${d.package} ${d.dependency}@${d.version}: ${d.reason}`);
   }
@@ -206,10 +204,9 @@ if (warnings > 0) {
 
 if (failures > 0) {
   console.error(
-    'Version parity check FAILED. Update versions.json `contract` and bump the ' +
-      'affected bundle in the same change, or record an intentional deviation in ' +
-      '`knownDeviations`.',
+    'Dependency inventory check FAILED. Review the changed manifest and ' +
+      'versions.json; do not force runtime parity without compatibility tests.',
   );
   process.exit(1);
 }
-console.log('Version parity check passed.');
+console.log('Manifest check passed; runtime and spec compatibility require separate tests.');

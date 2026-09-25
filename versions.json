@@ -1,6 +1,6 @@
 {
-  "_comment": "Single source of truth for the shared deck.gl + Mosaic runtime versions across the dbverse visualization stack (dbVisuals2 frontend, the bundled viewer, rDeckgl, rMosaic). Enforced by frontend/sqlrooms-ai/scripts/check-viz-versions.mjs (npm run test:versions). See COMPATIBILITY.md.",
-  "policy": "The dbVisuals2 frontend is the contract anchor: its deck.gl and Mosaic versions are pinned transitively by the @sqlrooms release it depends on, so they cannot move freely. The R export targets (rDeckgl, rMosaic) and the combined widget (mosaic.gl) must satisfy these ranges so that specs authored through the dbVisuals2 LLM bridge render identically in the R htmlwidgets. When a @sqlrooms upgrade moves the frontend out of `contract`, update `contract` here and bump the R bundles in the same change.",
+  "_comment": "Declared versions, checked by npm run test:versions. See COMPATIBILITY.md for runtime differences.",
+  "policy": "Canvas anchors version checks, not spec portability or performance parity across runtimes.",
   "anchor": "frontend/sqlrooms-ai",
   "contract": {
     "deck.gl": "^9.3.0",
@@ -56,13 +56,14 @@
       "package": "rDeckgl",
       "dependency": "deck.gl",
       "version": "9.1.15",
-      "reason": "rDeckgl's committed bundle predates the 9.3 anchor. Action: migrate rDeckgl to a viewer-src/package.json + vite build (as mosaic.gl already does), pin deck.gl to the contract range, and rebuild the bundle."
+      "observedRuntime": "9.2.4",
+      "reason": "CRAN 0.2.0 labels its bundle 9.1.15 but runs 9.2.4; this check reads YAML only."
     },
     {
       "package": "mosaic.gl",
       "dependency": "@uwdata/mosaic",
       "version": "0.25.0",
-      "reason": "mosaic.gl is ahead of the SQLRooms-pinned 0.21 anchor. Acceptable for the standalone widget (pristine upstream Mosaic), but align downward when SQLRooms upgrades Mosaic so exported specs stay byte-compatible."
+      "reason": "The R viewer uses Mosaic 0.25; Canvas uses 0.21. Their specs and measurements are distinct."
     }
   ]
 }
