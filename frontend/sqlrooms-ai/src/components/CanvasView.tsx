@@ -1,15 +1,12 @@
-import {
-  COORDINATE_SYSTEM,
-  OrthographicView,
-  type PickingInfo,
-} from '@deck.gl/core';
+import {COORDINATE_SYSTEM, OrthographicView, type Color, type PickingInfo} from '@deck.gl/core';
 import {DeckGL} from '@deck.gl/react';
 import {clauseIntervals} from '@uwdata/mosaic-core';
+import {algorithm as geoarrowAlgorithm} from '@geoarrow/geoarrow-js';
+import type {GeoArrowScatterplotLayerProps} from '@geoarrow/deck.gl-layers';
 import {
   GeoArrowPathLayer,
+  GeoArrowPolygonLayer,
   GeoArrowScatterplotLayer,
-  getMultiPolygonExterior,
-  getPolygonExterior,
 } from '../geoarrowDeckLayers';
 import {
   DeckJsonMap,
@@ -19,15 +16,19 @@ import {
 } from '@sqlrooms/deck';
 import {
   column,
+  ColumnSelector,
   createDefaultChartTypes,
   isSpecChartType,
   MosaicChartBuilder,
   MosaicSpecChart,
   Query,
   sql,
+  useChartBuilderContext,
+  useChartBuilderStore,
   useMosaicClient,
   type ChartBuilderColumn,
   type ChartConfig,
+  type ChartTypeDefinition,
   type Param,
   type Spec,
 } from '@sqlrooms/mosaic';
@@ -60,18 +61,14 @@ import {
   Clipboard,
   Code,
   LoaderCircle,
+  Map as MapIcon,
   RotateCcw,
+  Table2,
   Trash2,
   X,
 } from 'lucide-react';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FC,
-} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState, type FC} from 'react';
+import {z} from 'zod';
 import {
   CanvasSlotId,
   CanvasDataTableSpec,
@@ -88,9 +85,11 @@ import {
 } from '../canvasSlice';
 import {
   buildMatrixHeatmapSql,
+  compileBridgeSpec,
   quoteIdentifier,
   quoteRelation,
   resolveMatrixColumnFilterFromTable,
+  type BridgeSpatialMapGeometry,
   type MatrixHeatmapSqlConfig,
 } from '../canvasBridge';
 import {useRoomStore} from '../store';
@@ -105,7 +104,7 @@ const CANVAS_ORTHOGRAPHIC_VIEW = new OrthographicView({
 type MosaicWhereInput = Parameters<ReturnType<typeof Query.from>['where']>[0];
 type BridgeDeckConfig = Extract<
   CanvasBridgeConfig,
-  {type: 'pointMap' | 'polygonMap'}
+  {type: 'spatialMap'}
 >;
 type MatrixHeatmapCell = {
   row: number;
@@ -130,6 +129,26 @@ type TableBounds = {
   maxX: number;
   maxY: number;
 };
+type CanvasOrthographicViewState = ReturnType<typeof getOrthographicViewState>;
+// GeoArrow polygon workers cannot safely reconcile a new table under an old layer id.
+const spatialMapTableIds = new WeakMap<object, number>();
+let nextSpatialMapTableId = 0;
+
+function getSpatialMapTableId(table: object): number {
+  const cached = spatialMapTableIds.get(table);
+  if (cached !== undefined) return cached;
+  const id = nextSpatialMapTableId++;
+  spatialMapTableIds.set(table, id);
+  return id;
+}
+
+function resetSelection(selection: {reset: () => unknown} | null | undefined) {
+  try {
+    selection?.reset();
+  } catch (error) {
+    console.warn('Could not fully reset the linked selection.', error);
+  }
+}
 
 export const CanvasView: FC = () => {
   const layout = useRoomStore((state) => state.canvas.config.layout);
@@ -137,9 +156,32 @@ export const CanvasView: FC = () => {
   const resetLayout = useRoomStore((state) => state.canvas.resetLayout);
   const resetStackSizes = useRoomStore((state) => state.canvas.resetStackSizes);
   const clearAll = useRoomStore((state) => state.canvas.clearAll);
+  const getSelection = useRoomStore((state) => state.mosaic.getSelection);
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden p-3">
+      <div className="mb-3 flex shrink-0 justify-end">
+        <Button
+          variant="outline"
+          title="Reset canvas"
+          aria-label="Reset canvas"
+          size="sm"
+          onClick={() => {
+            if (
+              window.confirm(
+                'Reset the Canvas layout and clear all visualizations?',
+              )
+            ) {
+              resetSelection(getSelection('brush'));
+              clearAll();
+              resetStackSizes();
+              resetLayout();
+            }
+          }}
+        >
+          <RotateCcw className="h-4 w-4" />
+        </Button>
+      </div>
       <div className="min-h-0 flex-1">
         <LayoutRenderer
           rootLayout={layout}
@@ -148,30 +190,6 @@ export const CanvasView: FC = () => {
         />
       </div>
 
-      <div className="mt-3 shrink-0 border-t pt-3">
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            variant="outline"
-            className="hover:bg-accent flex items-center justify-center transition-colors"
-            title="Reset canvas"
-            aria-label="Reset canvas"
-            size="sm"
-            onClick={() => {
-              if (
-                window.confirm(
-                  'Reset the Canvas layout and clear all visualizations?',
-                )
-              ) {
-                clearAll();
-                resetStackSizes();
-                resetLayout();
-              }
-            }}
-          >
-            <RotateCcw className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
     </div>
   );
 };
@@ -219,6 +237,151 @@ const CANVAS_CHART_STACK_GROUPS: Record<
   },
 };
 
+const SPATIAL_MAP_CHART_TYPE_ID = 'spatial-map';
+const TABLE_CHART_TYPE_ID = 'table';
+const COORDINATE_GEOMETRY_SOURCE = '__coordinates__';
+const SpatialMapChartSettings = z
+  .object({
+    geometrySource: z.string().default(COORDINATE_GEOMETRY_SOURCE),
+    x: z.string().optional(),
+    y: z.string().optional(),
+  })
+  .superRefine(({geometrySource, x, y}, context) => {
+    if (
+      geometrySource === COORDINATE_GEOMETRY_SOURCE &&
+      (!x || !y || x === y)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Choose different X and Y columns.',
+      });
+    }
+  });
+
+function CanvasSpatialMapSettings() {
+  const {columns} = useChartBuilderContext();
+  const geometrySource = useChartBuilderStore(
+    (state) =>
+      (state.fieldValues.geometrySource as string | undefined) ??
+      COORDINATE_GEOMETRY_SOURCE,
+  );
+  const x = useChartBuilderStore(
+    (state) => state.fieldValues.x as string | undefined,
+  );
+  const y = useChartBuilderStore(
+    (state) => state.fieldValues.y as string | undefined,
+  );
+  const setFieldValue = useChartBuilderStore((state) => state.setFieldValue);
+  const geometryColumns = columns.filter(isGeometryColumn);
+
+  return (
+    <div className="grid gap-3 py-2">
+      <label className="grid gap-1 text-sm">
+        Geometry source
+        <Select
+          value={geometrySource}
+          onValueChange={(value) => setFieldValue('geometrySource', value)}
+        >
+          <SelectTrigger aria-label="Spatial geometry source">
+            <span className="truncate">
+              {geometrySource === COORDINATE_GEOMETRY_SOURCE
+                ? 'X/Y coordinates'
+                : geometrySource}
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={COORDINATE_GEOMETRY_SOURCE}>
+              X/Y coordinates
+            </SelectItem>
+            {geometryColumns.map((column) => (
+              <SelectItem key={column.name} value={column.name}>
+                {column.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </label>
+      <p className="text-muted-foreground text-xs">
+        {geometryColumns.length
+          ? 'Choose a geometry column above for points, lines or polygons. X/Y coordinates creates points.'
+          : 'No geometry column detected in this table. Choose another source table for polygon geometry, or use X/Y for points.'}
+      </p>
+      {geometrySource === COORDINATE_GEOMETRY_SOURCE ? (
+        <div className="grid grid-cols-2 gap-3">
+          {(['x', 'y'] as const).map((axis) => (
+            <label key={axis} className="grid gap-1 text-sm">
+              {axis.toUpperCase()} column
+              <ColumnSelector.Numeric
+                value={axis === 'x' ? x : y}
+                onChange={(value) => setFieldValue(axis, value)}
+              />
+            </label>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function isGeometryColumn(column: ChartBuilderColumn): boolean {
+  return (
+    /^(geom|geometry)$/i.test(column.name) ||
+    /geometry|wkb|binary|blob/i.test(column.type)
+  );
+}
+
+function resolveSpatialMapGeometry(
+  settings: z.infer<typeof SpatialMapChartSettings>,
+  columns: ChartBuilderColumn[],
+): BridgeSpatialMapGeometry {
+  if (settings.geometrySource === COORDINATE_GEOMETRY_SOURCE) {
+    if (!settings.x || !settings.y) {
+      throw new Error('Spatial maps require both X and Y columns.');
+    }
+    return {type: 'coordinates', x: settings.x, y: settings.y};
+  }
+
+  const findColumn = (names: string[]) =>
+    columns.find((column) => names.includes(column.name.toLowerCase()))?.name;
+  const x = findColumn(['x', 'longitude', 'lng', 'lon']);
+  const y = findColumn(['y', 'latitude', 'lat']);
+  return {
+    type: 'column',
+    column: settings.geometrySource,
+    ...(x && y ? {x, y} : {}),
+  };
+}
+
+// SQLRooms exposes a closed ChartConfig union. These adapters reuse its builder
+// while BridgeSpec remains the only compiler for Canvas-specific views.
+const SPATIAL_MAP_CHART_TYPE = {
+  id: SPATIAL_MAP_CHART_TYPE_ID,
+  label: 'Spatial Map',
+  description: 'Map coordinates or a point, line, or polygon geometry column',
+  icon: MapIcon,
+  schema: SpatialMapChartSettings,
+  settingsComponent: CanvasSpatialMapSettings,
+  createSpec: () => {
+    throw new Error('Spatial maps must be compiled through BridgeSpec.');
+  },
+} as unknown as ChartTypeDefinition;
+
+const TABLE_CHART_TYPE = {
+  id: TABLE_CHART_TYPE_ID,
+  label: 'Table',
+  description: 'Create a browsable table',
+  icon: Table2,
+  schema: z.object({}),
+  settingsComponent: () => (
+    <p className="text-muted-foreground text-sm">
+      Shows all columns with pagination and shared-brush filtering.
+    </p>
+  ),
+  createSpec: () => {
+    throw new Error('Tables must be compiled through BridgeSpec.');
+  },
+} as unknown as ChartTypeDefinition;
+
 const CanvasChartStackControls: FC<{group: CanvasChartStackGroup}> = ({
   group,
 }) => {
@@ -235,7 +398,11 @@ const CanvasChartStackControls: FC<{group: CanvasChartStackGroup}> = ({
   const [selectedChartSlot, setSelectedChartSlot] =
     useState<CanvasSlotIdType | null>(null);
   const chartTypes = useMemo(
-    () => createDefaultChartTypes().filter(isSpecChartType),
+    () => [
+      ...createDefaultChartTypes().filter(isSpecChartType),
+      TABLE_CHART_TYPE,
+      SPATIAL_MAP_CHART_TYPE,
+    ],
     [],
   );
   const tableOptions = useMemo<CanvasChartTableOption[]>(() => {
@@ -296,16 +463,11 @@ const CanvasChartStackControls: FC<{group: CanvasChartStackGroup}> = ({
       ? selectedChartSlot
       : defaultChartSlot;
   useEffect(() => {
-    if (!tableOptions.length) {
+    if (
+      selectedTableValue &&
+      !tableOptions.some((table) => table.value === selectedTableValue)
+    ) {
       setSelectedTableValue(undefined);
-      return;
-    }
-    if (!selectedTableValue) {
-      setSelectedTableValue(tableOptions[0].value);
-      return;
-    }
-    if (!tableOptions.some((table) => table.value === selectedTableValue)) {
-      setSelectedTableValue(tableOptions[0].value);
     }
   }, [selectedTableValue, tableOptions]);
 
@@ -320,11 +482,49 @@ const CanvasChartStackControls: FC<{group: CanvasChartStackGroup}> = ({
       if (!selectedTable || !targetChartSlot) {
         return;
       }
+      const replacedPanel = panels[targetChartSlot];
+      if (replacedPanel?.renderer === 'mosaic') {
+        resetSelection(
+          getSelection(
+            normalizeSelectionName(replacedPanel.linkedSelection || 'brush'),
+          ),
+        );
+      }
+
+      const chartTypeId = config.chartType as string;
+      if (
+        chartTypeId === TABLE_CHART_TYPE_ID ||
+        chartTypeId === SPATIAL_MAP_CHART_TYPE_ID
+      ) {
+        const view =
+          chartTypeId === TABLE_CHART_TYPE_ID
+            ? ({type: 'table'} as const)
+            : ({
+                type: 'spatialMap',
+                geometry: resolveSpatialMapGeometry(
+                  SpatialMapChartSettings.parse(config.settings),
+                  selectedTable.columns,
+                ),
+              } as const);
+        const compiled = compileBridgeSpec({
+          slot: targetChartSlot,
+          title: `${selectedTable.label} ${
+            chartTypeId === TABLE_CHART_TYPE_ID ? 'table' : 'spatial map'
+          }`,
+          dataset: {table: selectedTable.value},
+          view,
+          selection: 'brush',
+        });
+        updateSlot(targetChartSlot, compiled);
+        setSelectedChartSlot(null);
+        setBuilderOpen(false);
+        return;
+      }
 
       const chartTypeDef = chartTypes.find(
         (chartType) => chartType.id === config.chartType,
       );
-      if (!chartTypeDef) {
+      if (!chartTypeDef || !isSpecChartType(chartTypeDef)) {
         return;
       }
 
@@ -344,7 +544,14 @@ const CanvasChartStackControls: FC<{group: CanvasChartStackGroup}> = ({
       setSelectedChartSlot(null);
       setBuilderOpen(false);
     },
-    [chartTypes, selectedTable, targetChartSlot, updateSlot],
+    [
+      chartTypes,
+      getSelection,
+      panels,
+      selectedTable,
+      targetChartSlot,
+      updateSlot,
+    ],
   );
 
   const canCreateChart = Boolean(selectedTable && targetChartSlot);
@@ -443,7 +650,7 @@ const CanvasChartStackControls: FC<{group: CanvasChartStackGroup}> = ({
           className="h-7 shrink-0 whitespace-nowrap px-2 text-xs"
           onClick={() => {
             clearStack(group.id);
-            getSelection('brush')?.reset();
+            resetSelection(getSelection('brush'));
             setSelectedChartSlot(null);
           }}
           disabled={stackSize === 0}
@@ -532,6 +739,7 @@ const CanvasChartStackPanel: FC<{group: CanvasChartStackGroup}> = ({group}) => {
     (state) => state.canvas.config.stackSizes[group.id],
   );
   const removeStackSlot = useRoomStore((state) => state.canvas.removeStackSlot);
+  const getSelection = useRoomStore((state) => state.mosaic.getSelection);
   const horizontal = group.orientation === 'horizontal';
   const activeSlots = group.slots.slice(0, stackSize);
 
@@ -569,7 +777,19 @@ const CanvasChartStackPanel: FC<{group: CanvasChartStackGroup}> = ({group}) => {
                 <CanvasSlotHeader
                   slotId={slotId}
                   slot={panels[slotId]}
-                  onRemove={() => removeStackSlot(slotId)}
+                  onRemove={() => {
+                    const panel = panels[slotId];
+                    removeStackSlot(slotId);
+                    if (panel?.renderer === 'mosaic') {
+                      resetSelection(
+                        getSelection(
+                          normalizeSelectionName(
+                            panel.linkedSelection || 'brush',
+                          ),
+                        ),
+                      );
+                    }
+                  }}
                 />
                 <div className="relative min-h-0 flex-1">
                   {panels[slotId] ? (
@@ -792,7 +1012,7 @@ function isMosaicSpec(spec: Record<string, unknown>): boolean {
 
 const EmptySlot: FC = () => (
   <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-    Use the Canvas prompt below to populate this panel.
+    Use Add Chart to populate this panel.
   </div>
 );
 
@@ -920,7 +1140,7 @@ const DataTableSlot: FC<{slot: CanvasSlotConfig}> = ({slot}) => {
       Query.from(spec.tableName)
         .select(selectedColumns)
         .where((filter ?? []) as MosaicWhereInput)
-        .limit(spec.pageSize)
+        .limit(spec.pageSize + 1)
         .offset(pageIndex * spec.pageSize);
   }, [pageIndex, spec]);
   const {data, isLoading, error} = useMosaicClient({
@@ -974,8 +1194,9 @@ const DataTableSlot: FC<{slot: CanvasSlotConfig}> = ({slot}) => {
 
   const fields = data?.schema.fields ?? [];
   const rowCount = data?.numRows ?? 0;
+  const displayedRowCount = Math.min(rowCount, spec.pageSize);
   const canGoBack = pageIndex > 0;
-  const canGoForward = rowCount >= spec.pageSize;
+  const canGoForward = rowCount > spec.pageSize;
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -1000,7 +1221,7 @@ const DataTableSlot: FC<{slot: CanvasSlotConfig}> = ({slot}) => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rowCount === 0 ? (
+            {displayedRowCount === 0 ? (
               <TableRow>
                 <TableCell className="border-r px-2" />
                 <TableCell
@@ -1011,7 +1232,7 @@ const DataTableSlot: FC<{slot: CanvasSlotConfig}> = ({slot}) => {
                 </TableCell>
               </TableRow>
             ) : (
-              Array.from({length: rowCount}, (_, rowIndex) => (
+              Array.from({length: displayedRowCount}, (_, rowIndex) => (
                 <TableRow key={rowIndex}>
                   <TableCell className="text-muted-foreground w-12 border-r px-2 text-right text-xs tabular-nums">
                     {pageIndex * spec.pageSize + rowIndex + 1}
@@ -1052,7 +1273,7 @@ const DataTableSlot: FC<{slot: CanvasSlotConfig}> = ({slot}) => {
             variant="ghost"
             className="h-6 w-6"
             aria-label="Previous page"
-            disabled={!canGoBack}
+            disabled={isLoading || !canGoBack}
             onClick={() => setPageIndex((index) => Math.max(0, index - 1))}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -1066,17 +1287,17 @@ const DataTableSlot: FC<{slot: CanvasSlotConfig}> = ({slot}) => {
             variant="ghost"
             className="h-6 w-6"
             aria-label="Next page"
-            disabled={!canGoForward}
+            disabled={isLoading || !canGoForward}
             onClick={() => setPageIndex((index) => index + 1)}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
         <span className="text-muted-foreground tabular-nums">
-          {rowCount === 0
+          {displayedRowCount === 0
             ? '0 rows'
             : `${pageIndex * spec.pageSize + 1}-${
-                pageIndex * spec.pageSize + rowCount
+                pageIndex * spec.pageSize + displayedRowCount
               }`}
         </span>
         {isLoading ? (
@@ -1475,11 +1696,14 @@ const MatrixHeatmapMessage: FC<{message: string}> = ({message}) => (
   </div>
 );
 
+export const BRIDGE_MAP_ROW_LIMIT = 100000;
+const SPATIAL_MAP_FILTER_SETTLE_MS = 120;
+const SPATIAL_MAP_SYNC_POLYGON_ROW_LIMIT = 2000;
+type MapSelectionBounds = [[number, number], [number, number]];
+
 const DeckSlot: FC<{slot: CanvasSlotConfig}> = ({slot}) => {
   const bridgeDeck =
-    slot.bridge?.type === 'pointMap' || slot.bridge?.type === 'polygonMap'
-      ? slot.bridge
-      : undefined;
+    slot.bridge?.type === 'spatialMap' ? slot.bridge : undefined;
   const selectionName = normalizeSelectionName(slot.linkedSelection || 'brush');
   const normalizedDeckConfig = useMemo(
     () => normalizeDeckConfig(slot.spec, slot.datasets),
@@ -1490,50 +1714,60 @@ const DeckSlot: FC<{slot: CanvasSlotConfig}> = ({slot}) => {
       return () => Query.from('__dbvisuals_disabled_bridge__').limit(0);
     }
 
-    const selectColumns = uniqueDefined([
-      bridgeDeck.x,
-      bridgeDeck.y,
-      bridgeDeck.color,
-    ]);
+    const {geometry} = bridgeDeck;
+    const selectColumns = uniqueDefined([geometry.x, geometry.y]);
 
-    if (bridgeDeck.type === 'pointMap') {
-      return () =>
+    if (geometry.type === 'coordinates') {
+      return (filter: unknown) =>
         Query.from(bridgeDeck.table)
           .select(...selectColumns, {
-            geom: sql`ST_AsWKB(ST_Point(${column(bridgeDeck.x)}, ${column(
-              bridgeDeck.y,
+            geom: sql`ST_AsWKB(ST_Point(${column(geometry.x)}, ${column(
+              geometry.y,
             )}))`,
-          });
+          })
+          .where((filter ?? []) as MosaicWhereInput)
+          .limit(BRIDGE_MAP_ROW_LIMIT + 1);
     }
 
-    return () =>
+    return (filter: unknown) =>
       Query.from(bridgeDeck.table)
         .select(...selectColumns, {
-          geom: column(bridgeDeck.geometryColumn),
-        });
+          geom: column(geometry.column),
+        })
+        .where((filter ?? []) as MosaicWhereInput)
+        .limit(BRIDGE_MAP_ROW_LIMIT + 1);
   }, [bridgeDeck]);
-  const {data: linkedPointMapData, client: linkedPointMapClient} =
-    useMosaicClient({
-      enabled: Boolean(bridgeDeck),
-      id: bridgeDeck
-        ? `canvas-${slot.id}-${slot.updatedAt ?? slot.title}`
-        : undefined,
-      selectionName,
-      query: bridgeQuery,
-    });
+  const {data: linkedSpatialMapData, error: mapError, client} = useMosaicClient({
+    enabled: Boolean(bridgeDeck),
+    id: bridgeDeck
+      ? `canvas-${slot.id}-${slot.updatedAt ?? slot.title}`
+      : undefined,
+    selectionName,
+    query: bridgeQuery,
+  });
   const datasets = useMemo(
     () => toDeckDatasets(normalizedDeckConfig.datasets),
     [normalizedDeckConfig.datasets],
   );
+  const mapWasTruncated =
+    (linkedSpatialMapData?.numRows ?? 0) > BRIDGE_MAP_ROW_LIMIT;
+  const boundedMapData = linkedSpatialMapData
+    ? mapWasTruncated
+      ? linkedSpatialMapData.slice(0, BRIDGE_MAP_ROW_LIMIT)
+      : linkedSpatialMapData
+    : null;
 
   if (bridgeDeck) {
+    if (mapError) {
+      return <DataTableMessage message={`Spatial map query failed: ${mapError.message}`} />;
+    }
     return (
       <BridgeGeoArrowDeckSlot
         key={slot.updatedAt ?? slot.title}
         bridge={bridgeDeck}
-        table={linkedPointMapData}
-        client={linkedPointMapClient}
-        selectionName={selectionName}
+        table={boundedMapData}
+        truncated={mapWasTruncated}
+        client={client}
       />
     );
   }
@@ -1555,41 +1789,16 @@ const DeckSlot: FC<{slot: CanvasSlotConfig}> = ({slot}) => {
 const BridgeGeoArrowDeckSlot: FC<{
   bridge: BridgeDeckConfig;
   table: ReturnType<typeof useMosaicClient>['data'];
+  truncated: boolean;
   client: ReturnType<typeof useMosaicClient>['client'];
-  selectionName: string;
-}> = ({bridge, table, client, selectionName}) => {
-  const prepared = useMemo(() => {
-    if (!table || table.numRows === 0) {
-      return null;
-    }
-
-    return prepareDeckDataset({
-      datasetId: bridge.table,
-      table,
-      geometryColumn: 'geom',
-      geometryEncodingHint: 'wkb',
-    });
-  }, [bridge.table, table]);
-  const layerData = useMemo(
-    () => prepared?.getGeoArrowLayerData('geom') ?? null,
-    [prepared],
-  );
-  const initialViewState = useMemo(
-    () => getOrthographicViewState(getTableBounds(table, bridge.x, bridge.y)),
-    [bridge.x, bridge.y, table],
-  );
-
-  // Deck-origin selection: a rectangular drag over the map writes a Mosaic
-  // crossfilter clause keyed on the bridge x/y columns, so the deck.gl panel
-  // can drive every linked Mosaic view (the reverse of the brush -> deck link).
-  // The panel's own Mosaic client is the clause source, so crossfilter excludes
-  // this panel from its own selection. Requires x/y columns (always present for
-  // pointMap; centroids for polygonMap).
-  const getSelection = useRoomStore((state) => state.mosaic.getSelection);
-  const xColumn = bridge.x;
-  const yColumn = bridge.y;
-  const canSelect = Boolean(xColumn && yColumn && client);
+}> = ({bridge, table, truncated, client}) => {
+  const [renderState, setRenderState] = useState({table, truncated});
+  const [viewState, setViewState] =
+    useState<CanvasOrthographicViewState | null>(null);
+  const {x, y} = bridge.geometry;
+  const canSelect = Boolean(x && y && client);
   const [selectMode, setSelectMode] = useState(false);
+  const [selectedBounds, setSelectedBounds] = useState<MapSelectionBounds | null>(null);
   const [selectRect, setSelectRect] = useState<{
     left: number;
     top: number;
@@ -1597,142 +1806,205 @@ const BridgeGeoArrowDeckSlot: FC<{
     height: number;
   } | null>(null);
   const dragRef = useRef<{
-    startPx: [number, number];
-    startWorld: [number, number];
+    pixel: [number, number];
+    start: number[];
+    end: number[];
   } | null>(null);
-  const lastWorldRef = useRef<[number, number] | null>(null);
-
   const applySelection = useCallback(
-    (value: [[number, number], [number, number]] | null) => {
-      if (!client || !xColumn || !yColumn) {
-        return;
-      }
-      const selection = getSelection(selectionName, 'crossfilter');
-      if (!selection) {
-        return;
-      }
-      try {
-        selection.update(
-          clauseIntervals([column(xColumn), column(yColumn)], value, {
-            source: client,
-          }),
-        );
-      } catch (error) {
-        console.warn('[dbVisuals] deck-origin selection failed', error);
-      }
+    (value: MapSelectionBounds | null) => {
+      if (!client || !x || !y) return;
+      // The source client keeps its context; other views receive this XY filter.
+      const {predicate, source, clients} = clauseIntervals(
+        [column(x), column(y)], value, {source: client},
+      );
+      // No chart-scale metadata: map intervals use exact SQL, not pixel-bin preaggregation.
+      client.filterBy?.update({predicate, source, clients, value});
     },
-    [client, getSelection, selectionName, xColumn, yColumn],
+    [client, x, y],
   );
-
-  const handleDragStart = useCallback(
-    (info: PickingInfo) => {
-      if (!selectMode || !canSelect || !info.coordinate) {
-        return;
-      }
-      dragRef.current = {
-        startPx: [info.x, info.y],
-        startWorld: [info.coordinate[0], info.coordinate[1]],
-      };
-      lastWorldRef.current = [info.coordinate[0], info.coordinate[1]];
-      setSelectRect({left: info.x, top: info.y, width: 0, height: 0});
-    },
-    [canSelect, selectMode],
-  );
-
-  const handleDrag = useCallback((info: PickingInfo) => {
+  useEffect(() => {
+    const selection = client?.filterBy;
+    if (!client || !selection) return;
+    const sync = () => setSelectedBounds(
+      (selection.valueFor(client) as MapSelectionBounds | undefined) ?? null,
+    );
+    sync();
+    selection.addEventListener('value', sync);
+    return () => {
+      selection.removeEventListener('value', sync);
+      // Removing/replacing this map must not leave its filter on other charts.
+      if (selection.valueFor(client) != null) applySelection(null);
+    };
+  }, [applySelection, client]);
+  const handleDrag = (info: PickingInfo) => {
     const drag = dragRef.current;
-    if (!drag) {
-      return;
-    }
-    if (info.coordinate) {
-      lastWorldRef.current = [info.coordinate[0], info.coordinate[1]];
-    }
+    if (!drag) return;
+    if (info.coordinate) drag.end = info.coordinate;
     setSelectRect({
-      left: Math.min(drag.startPx[0], info.x),
-      top: Math.min(drag.startPx[1], info.y),
-      width: Math.abs(info.x - drag.startPx[0]),
-      height: Math.abs(info.y - drag.startPx[1]),
+      left: Math.min(drag.pixel[0], info.x),
+      top: Math.min(drag.pixel[1], info.y),
+      width: Math.abs(info.x - drag.pixel[0]),
+      height: Math.abs(info.y - drag.pixel[1]),
     });
-  }, []);
+  };
+  const selectionControls = canSelect ? (
+    <div className="absolute left-2 top-2 flex gap-1">
+      <Button
+        size="sm"
+        variant={selectMode ? 'default' : 'secondary'}
+        aria-pressed={selectMode}
+        onClick={() => setSelectMode(!selectMode)}
+        title="Drag a rectangle to filter linked views using the map's X/Y columns"
+      >
+        Select
+      </Button>
+      <Button
+        size="sm"
+        variant="secondary"
+        onClick={() => applySelection(null)}
+        title="Clear this map's selection, keeping other chart filters"
+      >
+        Clear
+      </Button>
+    </div>
+  ) : null;
+  useEffect(() => {
+    const timeout = window.setTimeout(
+      () => setRenderState({table, truncated}),
+      SPATIAL_MAP_FILTER_SETTLE_MS,
+    );
+    return () => window.clearTimeout(timeout);
+  }, [table, truncated]);
+  const {table: renderTable, truncated: renderTruncated} = renderState;
+  const {layerData, preparationError} = useMemo(() => {
+    if (!renderTable || renderTable.numRows === 0) {
+      return {layerData: null, preparationError: null};
+    }
 
-  const handleDragEnd = useCallback(
-    (info: PickingInfo) => {
-      const drag = dragRef.current;
-      dragRef.current = null;
-      setSelectRect(null);
-      if (!drag) {
-        return;
-      }
-      const end = info.coordinate
-        ? ([info.coordinate[0], info.coordinate[1]] as [number, number])
-        : lastWorldRef.current;
-      const movedPx =
-        Math.abs(info.x - drag.startPx[0]) + Math.abs(info.y - drag.startPx[1]);
-      if (!end || movedPx < 4) {
-        // A click (no meaningful drag) clears this panel's selection.
-        applySelection(null);
-        return;
-      }
-      applySelection([
-        [
-          Math.min(drag.startWorld[0], end[0]),
-          Math.max(drag.startWorld[0], end[0]),
-        ],
-        [
-          Math.min(drag.startWorld[1], end[1]),
-          Math.max(drag.startWorld[1], end[1]),
-        ],
-      ]);
-    },
-    [applySelection],
-  );
-
-  const clearSelection = useCallback(() => {
-    applySelection(null);
-  }, [applySelection]);
+    try {
+      const prepared = prepareDeckDataset({
+        datasetId: bridge.table,
+        table: renderTable,
+        geometryColumn: 'geom',
+        geometryEncodingHint:
+          bridge.geometry.type === 'coordinates' ? 'wkb' : undefined,
+      });
+      return {
+        layerData: prepared.getGeoArrowLayerData('geom'),
+        preparationError: null,
+      };
+    } catch (error) {
+      return {
+        layerData: null,
+        preparationError:
+          error instanceof Error ? error.message : 'Could not prepare geometry.',
+      };
+    }
+  }, [bridge.geometry.type, bridge.table, renderTable]);
+  useEffect(() => {
+    if (renderTable && renderTable.numRows > 0 && !viewState) {
+      setViewState(
+        getOrthographicViewState(
+          getTableBounds(
+            renderTable, bridge.geometry.x, bridge.geometry.y, layerData,
+          ),
+        ),
+      );
+    }
+  }, [bridge.geometry.x, bridge.geometry.y, layerData, renderTable, viewState]);
   const layers = useMemo(() => {
     if (!layerData) {
       return [];
     }
+    const layerId = `${bridge.table}-${getSpatialMapTableId(layerData.table)}`;
+    const selectedColor: Color = [255, 200, 60, 230];
+    const contextColor: Color = [100, 116, 139, 55];
+    const coordinates = new Map(layerData.table.batches.map((batch) => [batch, {
+      x: x ? batch.getChild(x) : null, y: y ? batch.getChild(y) : null,
+    }]));
+    // GeoArrow supplies the original row within each Arrow batch, including multipart geometry.
+    const highlight: GeoArrowScatterplotLayerProps['getFillColor'] = selectedBounds && x && y
+      ? ({index, data}) => {
+          const vectors = coordinates.get(data.data);
+          const px = vectors?.x?.get(index);
+          const py = vectors?.y?.get(index);
+          return px != null && py != null
+            && px >= selectedBounds[0][0] && px <= selectedBounds[0][1]
+            && py >= selectedBounds[1][0] && py <= selectedBounds[1][1]
+            ? selectedColor : contextColor;
+        }
+      : undefined;
+    const updateTriggers = {
+      getFillColor: selectedBounds, getLineColor: selectedBounds, getColor: selectedBounds,
+    };
 
-    if (bridge.type === 'polygonMap') {
-      return [
-        new GeoArrowPathLayer({
-          id: `${bridge.table}-polygons`,
-          data: layerData.table,
-          getPath: getPolygonPathColumn(layerData),
-          getColor: [75, 100, 220, 220],
-          getWidth: 1,
-          widthUnits: 'pixels',
-          widthMinPixels: 1,
-          coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
-          pickable: true,
-          parameters: {depthTest: false},
-          _validate: false,
-        }),
-      ];
+    switch (layerData.encoding) {
+      case 'geoarrow.point':
+      case 'geoarrow.multipoint':
+        return [
+          new GeoArrowScatterplotLayer({
+            id: `${layerId}-points`,
+            data: layerData.table,
+            getPosition: layerData.geometryColumn,
+            getFillColor: highlight ?? [230, 95, 70, 190],
+            updateTriggers,
+            coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
+            filled: true,
+            stroked: false,
+            pickable: true,
+            getRadius: 4,
+            radiusUnits: 'pixels',
+            radiusMinPixels: 2,
+            radiusMaxPixels: 8,
+            _validate: false,
+          }),
+        ];
+      case 'geoarrow.linestring':
+      case 'geoarrow.multilinestring':
+        return [
+          new GeoArrowPathLayer({
+            id: `${layerId}-paths`,
+            data: layerData.table,
+            getPath: layerData.geometryColumn as never,
+            getColor: highlight ?? [75, 100, 220, 220],
+            updateTriggers,
+            getWidth: 1,
+            widthUnits: 'pixels',
+            widthMinPixels: 1,
+            coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
+            pickable: true,
+            parameters: {depthTest: false},
+            _validate: false,
+          }),
+        ];
+      case 'geoarrow.polygon':
+      case 'geoarrow.multipolygon':
+        return [
+          new GeoArrowPolygonLayer({
+            id: `${layerId}-polygons`,
+            data: layerData.table,
+            getPolygon: layerData.geometryColumn as never,
+            getFillColor: highlight ?? [75, 100, 220, 120],
+            getLineColor: highlight ?? [75, 100, 220, 240],
+            updateTriggers,
+            getLineWidth: 1,
+            coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
+            pickable: true,
+            parameters: {depthTest: false},
+            _validate: false,
+            // Small filtered polygons do not need an asynchronous worker.
+            _subLayerProps:
+              layerData.table.numRows <= SPATIAL_MAP_SYNC_POLYGON_ROW_LIMIT
+                ? {fill: {earcutWorkerUrl: null}}
+                : undefined,
+          }),
+        ];
+      default:
+        return [];
     }
+  }, [bridge.table, layerData, selectedBounds, x, y]);
 
-    return [
-      new GeoArrowScatterplotLayer({
-        id: `${bridge.table}-points`,
-        data: layerData.table,
-        getPosition: layerData.geometryColumn,
-        getFillColor: [230, 95, 70, 190],
-        coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
-        filled: true,
-        stroked: false,
-        pickable: true,
-        getRadius: 4,
-        radiusUnits: 'pixels',
-        radiusMinPixels: 2,
-        radiusMaxPixels: 8,
-        _validate: false,
-      }),
-    ];
-  }, [bridge.table, bridge.type, layerData]);
-
-  if (!table) {
+  if (!renderTable) {
     return (
       <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
         Preparing GeoArrow data...
@@ -1740,72 +2012,117 @@ const BridgeGeoArrowDeckSlot: FC<{
     );
   }
 
-  if (table.numRows === 0) {
+  if (renderTable.numRows === 0 && !viewState) {
+    return (
+      <div className="text-muted-foreground absolute inset-0 flex items-center justify-center text-sm">
+        No rows match the current brush.
+        {selectionControls}
+      </div>
+    );
+  }
+
+  if (preparationError) {
+    return (
+      <div className="text-muted-foreground flex h-full items-center justify-center p-4 text-center text-sm">
+        {preparationError}
+      </div>
+    );
+  }
+
+  if (!viewState) {
     return (
       <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-        No rows match the current brush.
+        Preparing map view...
+      </div>
+    );
+  }
+
+  if (layerData && layers.length === 0) {
+    return (
+      <div className="text-muted-foreground flex h-full items-center justify-center p-4 text-center text-sm">
+        Unsupported spatial geometry encoding: {layerData.encoding}.
       </div>
     );
   }
 
   return (
-    <div className="relative h-full w-full">
+    <div
+      className="absolute inset-0 overflow-hidden [&_[id^=view-]]:pointer-events-none"
+      data-map-row-count={renderTable.numRows}
+      data-map-encoding={layerData?.encoding}
+      data-map-zoom={viewState.zoom}
+    >
       <DeckGL
         views={CANVAS_ORTHOGRAPHIC_VIEW}
-        initialViewState={initialViewState}
-        controller={{dragPan: !selectMode, doubleClickZoom: false}}
-        onDragStart={handleDragStart}
+        viewState={viewState}
+        onViewStateChange={({viewState: nextViewState}) => {
+          setViewState((current) =>
+            current
+              ? {...current, ...nextViewState}
+              : (nextViewState as CanvasOrthographicViewState),
+          );
+        }}
+        controller={{dragPan: !selectMode, doubleClickZoom: !selectMode}}
+        getCursor={({isDragging}) =>
+          selectMode ? 'crosshair' : isDragging ? 'grabbing' : 'grab'
+        }
+        onDragStart={(info, event) => {
+          if (!selectMode || !canSelect || !info.viewport) return;
+          const pixel: [number, number] = [
+            info.x - event.deltaX, info.y - event.deltaY,
+          ];
+          const start = info.viewport.unproject(pixel);
+          dragRef.current = {pixel, start, end: start};
+          handleDrag(info);
+        }}
         onDrag={handleDrag}
-        onDragEnd={handleDragEnd}
+        onDragEnd={(info) => {
+          const drag = dragRef.current;
+          dragRef.current = null;
+          setSelectRect(null);
+          if (!drag) return;
+          const end = info.coordinate ?? drag.end;
+          const moved = Math.hypot(info.x - drag.pixel[0], info.y - drag.pixel[1]);
+          applySelection(
+            moved < 4 ? null : [
+              [Math.min(drag.start[0], end[0]), Math.max(drag.start[0], end[0])],
+              [Math.min(drag.start[1], end[1]), Math.max(drag.start[1], end[1])],
+            ],
+          );
+        }}
         layers={layers}
         width="100%"
         height="100%"
-      />
-      {selectRect ? (
-        <div
-          className="pointer-events-none absolute border border-sky-500 bg-sky-500/20"
-          style={{
-            left: selectRect.left,
-            top: selectRect.top,
-            width: selectRect.width,
-            height: selectRect.height,
-          }}
-        />
+      >
+        {({viewport}) => {
+          let rectangle = selectRect;
+          if (!rectangle && selectedBounds) {
+            const [[x0, x1], [y0, y1]] = selectedBounds;
+            const [left, top] = viewport.project([x0, y0]);
+            const [right, bottom] = viewport.project([x1, y1]);
+            rectangle = {left, top, width: right - left, height: bottom - top};
+          }
+          return rectangle ? (
+            <div role="img" aria-label="Map selection"
+              className="pointer-events-none absolute border-2 border-sky-400"
+              style={rectangle} />
+          ) : null;
+        }}
+      </DeckGL>
+      {renderTable.numRows === 0 ? (
+        <div className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center text-sm">
+          No rows match the current brush.
+        </div>
       ) : null}
-      {canSelect ? (
-        <div className="absolute left-2 top-2 flex gap-1">
-          <button
-            type="button"
-            onClick={() => setSelectMode((mode) => !mode)}
-            title="Drag a rectangle to filter linked Mosaic views"
-            className={`rounded px-2 py-0.5 text-xs shadow-sm ${
-              selectMode
-                ? 'bg-sky-600 text-white'
-                : 'bg-background/80 text-foreground border'
-            }`}
-          >
-            {selectMode ? 'Selecting' : 'Select'}
-          </button>
-          <button
-            type="button"
-            onClick={clearSelection}
-            className="bg-background/80 text-foreground rounded border px-2 py-0.5 text-xs shadow-sm"
-          >
-            Clear
-          </button>
+      {selectionControls}
+      {renderTruncated ? (
+        <div className="bg-background/90 absolute bottom-2 left-2 rounded border px-2 py-1 text-xs shadow">
+          Map capped at {BRIDGE_MAP_ROW_LIMIT.toLocaleString()} rows.
         </div>
       ) : null}
     </div>
   );
 };
-
-function getPolygonPathColumn(layerData: PreparedGeoArrowLayerData) {
-  if (layerData.encoding === 'geoarrow.multipolygon') {
-    return getMultiPolygonExterior(layerData.geometryColumn as never);
-  }
-
-  return getPolygonExterior(layerData.geometryColumn as never);
-}
 
 function uniqueDefined(values: Array<string | undefined>): string[] {
   return [...new Set(values.filter((value): value is string => Boolean(value)))];
@@ -1815,11 +2132,22 @@ function getTableBounds(
   table: ReturnType<typeof useMosaicClient>['data'],
   xColumn?: string,
   yColumn?: string,
+  layerData?: PreparedGeoArrowLayerData | null,
 ): TableBounds | null {
   const xs = readNumericColumn(table, xColumn);
   const ys = readNumericColumn(table, yColumn);
   if (!xs.length || xs.length !== ys.length) {
-    return null;
+    const field = layerData?.table.schema.fields.find(
+      (field) => field.name === layerData.geometryColumnName,
+    );
+    if (!layerData || !field) return null;
+    // Promoted WKB vectors can retain the source field's binary metadata.
+    const geometryField = field.clone({
+      type: layerData.geometryColumn.type,
+      metadata: new Map(field.metadata).set('ARROW:extension:name', layerData.encoding),
+    });
+    const bounds = geoarrowAlgorithm.totalBounds(layerData.geometryColumn, geometryField);
+    return Object.values(bounds).every(Number.isFinite) ? bounds : null;
   }
 
   return xs.reduce<TableBounds>(

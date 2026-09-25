@@ -2,6 +2,12 @@ import {z} from 'zod';
 import {
   type CanvasMatrixHeatmapSpec,
   CanvasSlotId,
+  type CanvasSpatialMapGeometry,
+  CanvasSpatialMapGeometry as CanvasSpatialMapGeometrySchema,
+  DATA_TABLE_MAX_PAGE_SIZE,
+  MATRIX_HEATMAP_MAX_CELLS,
+  MATRIX_HEATMAP_MAX_COLUMN_LIMIT,
+  MATRIX_HEATMAP_MAX_ROW_LIMIT,
   normalizeSelectionName,
   type UpdateCanvasSlotParameters,
 } from './canvasSlice';
@@ -10,30 +16,14 @@ const BACKGROUND_COLOR = '#f5d9a6';
 const FOREGROUND_COLOR = '#e67f5f';
 const MATRIX_HEATMAP_DEFAULT_ROW_LIMIT = 40;
 const MATRIX_HEATMAP_DEFAULT_COLUMN_LIMIT = 80;
-const MATRIX_HEATMAP_MAX_ROW_LIMIT = 100;
-const MATRIX_HEATMAP_MAX_COLUMN_LIMIT = 200;
-const MATRIX_HEATMAP_MAX_CELLS = 10000;
 const DATA_TABLE_DEFAULT_PAGE_SIZE = 5;
-const DATA_TABLE_MAX_PAGE_SIZE = 100;
-
-export const BridgePointGeometry = z.object({
-  type: z.literal('point'),
-  x: z.string().min(1),
-  y: z.string().min(1),
-});
-export type BridgePointGeometry = z.infer<typeof BridgePointGeometry>;
-
-export const BridgePolygonGeometry = z.object({
-  type: z.literal('polygon'),
-  column: z.string().min(1),
-});
-export type BridgePolygonGeometry = z.infer<typeof BridgePolygonGeometry>;
 
 export const BridgeDataset = z.object({
   table: z.string().min(1),
-  geometry: z.union([BridgePointGeometry, BridgePolygonGeometry]).optional(),
 });
 export type BridgeDataset = z.infer<typeof BridgeDataset>;
+
+export type BridgeSpatialMapGeometry = CanvasSpatialMapGeometry;
 
 export const BridgeView = z.discriminatedUnion('type', [
   z.object({
@@ -100,17 +90,8 @@ export const BridgeView = z.discriminatedUnion('type', [
       .optional(),
   }),
   z.object({
-    type: z.literal('pointMap'),
-    x: z.string().min(1),
-    y: z.string().min(1),
-    color: z.string().min(1).optional(),
-  }),
-  z.object({
-    type: z.literal('polygonMap'),
-    geometry: z.string().min(1).optional(),
-    x: z.string().min(1).optional(),
-    y: z.string().min(1).optional(),
-    color: z.string().min(1).optional(),
+    type: z.literal('spatialMap'),
+    geometry: CanvasSpatialMapGeometrySchema,
   }),
 ]);
 export type BridgeView = z.infer<typeof BridgeView>;
@@ -129,8 +110,7 @@ type ScatterView = Extract<BridgeView, {type: 'scatter'}>;
 type RasterView = Extract<BridgeView, {type: 'density2d' | 'heatmap'}>;
 type MatrixHeatmapView = Extract<BridgeView, {type: 'matrixHeatmap'}>;
 type DataTableView = Extract<BridgeView, {type: 'table'}>;
-type PointMapView = Extract<BridgeView, {type: 'pointMap'}>;
-type PolygonMapView = Extract<BridgeView, {type: 'polygonMap'}>;
+type SpatialMapView = Extract<BridgeView, {type: 'spatialMap'}>;
 
 export type MatrixHeatmapSqlConfig = Pick<
   CanvasMatrixHeatmapSpec,
@@ -172,10 +152,8 @@ export function compileBridgeSpec(
       return compileMatrixHeatmap(bridgeSpec, bridgeSpec.view, selectionName);
     case 'table':
       return compileDataTable(bridgeSpec, bridgeSpec.view, selectionName);
-    case 'pointMap':
-      return compilePointMap(bridgeSpec, bridgeSpec.view, selectionName);
-    case 'polygonMap':
-      return compilePolygonMap(bridgeSpec, bridgeSpec.view, selectionName);
+    case 'spatialMap':
+      return compileSpatialMap(bridgeSpec, bridgeSpec.view, selectionName);
   }
 }
 
@@ -672,20 +650,12 @@ function compileDataTable(
   };
 }
 
-function compilePointMap(
+function compileSpatialMap(
   bridgeSpec: BridgeSpec,
-  view: PointMapView,
+  view: SpatialMapView,
   selectionName: string,
 ): UpdateCanvasSlotParameters {
   const {table} = bridgeSpec.dataset;
-  const geometry =
-    bridgeSpec.dataset.geometry?.type === 'point'
-      ? bridgeSpec.dataset.geometry
-      : {
-          type: 'point' as const,
-          x: view.x,
-          y: view.y,
-        };
   const datasetId = table;
 
   return {
@@ -694,11 +664,9 @@ function compilePointMap(
     renderer: 'deck_json',
     linkedSelection: selectionName,
     bridge: {
-      type: 'pointMap',
+      type: 'spatialMap',
       table,
-      x: geometry.x,
-      y: geometry.y,
-      color: view.color,
+      geometry: view.geometry,
     },
     spec: {
       initialViewState: {
@@ -707,111 +675,40 @@ function compilePointMap(
       },
       layers: [
         {
-          '@@type': 'GeoArrowScatterplotLayer',
-          id: `${datasetId}-points`,
+          '@@type': 'GeoJsonLayer',
+          id: `${datasetId}-spatial`,
           _sqlroomsBinding: {
             dataset: datasetId,
           },
-          getFillColor: view.color
-            ? {
-                '@@function': 'colorScale',
-                field: view.color,
-                type: 'sequential',
-                scheme: 'YlOrBr',
-                domain: 'auto',
-                clamp: true,
-              }
-            : [230, 95, 70, 180],
-          filled: true,
-          stroked: false,
-          coordinateSystem: '@@#COORDINATE_SYSTEM.CARTESIAN',
-          positionFormat: 'XY',
-          pickable: true,
-          getRadius: 4,
-          radiusUnits: 'pixels',
-          radiusMinPixels: 2,
-          radiusMaxPixels: 8,
-        },
-      ],
-    },
-    datasets: {
-      [datasetId]: {
-        sqlQuery: `SELECT *, ST_AsWKB(ST_Point(${quoteIdentifier(
-          geometry.x,
-        )}, ${quoteIdentifier(geometry.y)})) AS geom FROM ${quoteIdentifier(
-          table,
-        )}`,
-        geometryColumn: 'geom',
-        geometryEncodingHint: 'wkb',
-      },
-    },
-  };
-}
-
-function compilePolygonMap(
-  bridgeSpec: BridgeSpec,
-  view: PolygonMapView,
-  selectionName: string,
-): UpdateCanvasSlotParameters {
-  const {table} = bridgeSpec.dataset;
-  const geometryColumn =
-    view.geometry ??
-    (bridgeSpec.dataset.geometry?.type === 'polygon'
-      ? bridgeSpec.dataset.geometry.column
-      : 'geom');
-  const datasetId = table;
-
-  return {
-    slot: bridgeSpec.slot,
-    title: bridgeSpec.title,
-    renderer: 'deck_json',
-    linkedSelection: selectionName,
-    bridge: {
-      type: 'polygonMap',
-      table,
-      geometryColumn,
-      x: view.x,
-      y: view.y,
-      color: view.color,
-    },
-    spec: {
-      initialViewState: {
-        target: [0, 0, 0],
-        zoom: -4,
-      },
-      layers: [
-        {
-          '@@type': 'GeoArrowPathLayer',
-          id: `${datasetId}-polygons`,
-          _sqlroomsBinding: {
-            dataset: datasetId,
-          },
-          getColor: [75, 100, 220, 220],
-          getWidth: 1,
-          widthUnits: 'pixels',
-          widthMinPixels: 1,
-          coordinateSystem: '@@#COORDINATE_SYSTEM.CARTESIAN',
-          positionFormat: 'XY',
           pickable: true,
         },
       ],
     },
     datasets: {
       [datasetId]: {
-        sqlQuery: buildPolygonSql(table, geometryColumn),
+        sqlQuery: buildSpatialMapSql(table, view.geometry),
         geometryColumn: 'geom',
-        geometryEncodingHint: 'wkb',
+        geometryEncodingHint:
+          view.geometry.type === 'coordinates' ? 'wkb' : undefined,
       },
     },
   };
 }
 
-function buildPolygonSql(table: string, geometryColumn: string): string {
-  if (geometryColumn === 'geom') {
-    return `SELECT * FROM ${quoteIdentifier(table)}`;
+function buildSpatialMapSql(
+  table: string,
+  geometry: BridgeSpatialMapGeometry,
+): string {
+  if (geometry.type === 'coordinates') {
+    return `SELECT *, ST_AsWKB(ST_Point(${quoteIdentifier(
+      geometry.x,
+    )}, ${quoteIdentifier(geometry.y)})) AS geom FROM ${quoteRelation(table)}`;
+  }
+  if (geometry.column === 'geom') {
+    return `SELECT * FROM ${quoteRelation(table)}`;
   }
 
-  return `SELECT *, ${quoteIdentifier(geometryColumn)} AS geom FROM ${quoteIdentifier(
+  return `SELECT *, ${quoteIdentifier(geometry.column)} AS geom FROM ${quoteRelation(
     table,
   )}`;
 }
