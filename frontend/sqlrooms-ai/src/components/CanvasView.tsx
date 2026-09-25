@@ -1,4 +1,3 @@
-import {Chat} from '@sqlrooms/ai';
 import {
   COORDINATE_SYSTEM,
   OrthographicView,
@@ -138,11 +137,6 @@ export const CanvasView: FC = () => {
   const resetLayout = useRoomStore((state) => state.canvas.resetLayout);
   const resetStackSizes = useRoomStore((state) => state.canvas.resetStackSizes);
   const clearAll = useRoomStore((state) => state.canvas.clearAll);
-  const updateProvider = useRoomStore((s) => s.aiSettings.updateProvider);
-  const isCanvasAiRunning = useRoomStore((state) => {
-    const sessionId = state.ai.config.currentSessionId;
-    return sessionId ? state.ai.getIsRunning(sessionId) : false;
-  });
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden p-3">
@@ -155,55 +149,32 @@ export const CanvasView: FC = () => {
       </div>
 
       <div className="mt-3 shrink-0 border-t pt-3">
-        <Chat>
-          <Chat.Composer placeholder="Update panels A1-A3, B1-B3, or C1-C3 with charts, maps, tables, or a preset layout.">
-            <Chat.InlineApiKeyInput
-              onSaveApiKey={(provider, apiKey) => {
-                updateProvider(provider, {apiKey});
-              }}
-            />
-            <div className="flex items-center justify-end gap-2">
-              {isCanvasAiRunning && <CanvasAiWorkingPill />}
-              <Button
-                variant="outline"
-                className="hover:bg-accent flex items-center justify-center transition-colors"
-                title="Reset canvas"
-                aria-label="Reset canvas"
-                size="sm"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      'Reset the Canvas layout and clear all visualizations?',
-                    )
-                  ) {
-                    clearAll();
-                    resetStackSizes();
-                    resetLayout();
-                  }
-                }}
-              >
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-              <Chat.ModelSelector />
-            </div>
-          </Chat.Composer>
-        </Chat>
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            className="hover:bg-accent flex items-center justify-center transition-colors"
+            title="Reset canvas"
+            aria-label="Reset canvas"
+            size="sm"
+            onClick={() => {
+              if (
+                window.confirm(
+                  'Reset the Canvas layout and clear all visualizations?',
+                )
+              ) {
+                clearAll();
+                resetStackSizes();
+                resetLayout();
+              }
+            }}
+          >
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );
 };
-
-const CanvasAiWorkingPill: FC = () => (
-  <div
-    className="border-primary/30 bg-primary/10 text-primary flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium"
-    role="status"
-    aria-live="polite"
-    aria-label="AI is updating the canvas"
-  >
-    <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin" />
-    <span className="hidden sm:inline">Updating canvas</span>
-  </div>
-);
 
 type CanvasChartTableOption = {
   value: string;
