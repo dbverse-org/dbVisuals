@@ -18,6 +18,7 @@ import {
   column,
   ColumnSelector,
   createDefaultChartTypes,
+  desc,
   isSpecChartType,
   MosaicChartBuilder,
   MosaicSpecChart,
@@ -1699,6 +1700,7 @@ const MatrixHeatmapMessage: FC<{message: string}> = ({message}) => (
 export const BRIDGE_MAP_ROW_LIMIT = 100000;
 const SPATIAL_MAP_FILTER_SETTLE_MS = 120;
 const SPATIAL_MAP_SYNC_POLYGON_ROW_LIMIT = 2000;
+const SPATIAL_MAP_MATCH_COLUMN = '__dbvisuals_brush_match';
 type MapSelectionBounds = [[number, number], [number, number]];
 
 const DeckSlot: FC<{slot: CanvasSlotConfig}> = ({slot}) => {
@@ -1717,25 +1719,23 @@ const DeckSlot: FC<{slot: CanvasSlotConfig}> = ({slot}) => {
     const {geometry} = bridgeDeck;
     const selectColumns = uniqueDefined([geometry.x, geometry.y]);
 
-    if (geometry.type === 'coordinates') {
-      return (filter: unknown) =>
-        Query.from(bridgeDeck.table)
-          .select(...selectColumns, {
-            geom: sql`ST_AsWKB(ST_Point(${column(geometry.x)}, ${column(
-              geometry.y,
-            )}))`,
-          })
-          .where((filter ?? []) as MosaicWhereInput)
-          .limit(BRIDGE_MAP_ROW_LIMIT + 1);
-    }
-
-    return (filter: unknown) =>
-      Query.from(bridgeDeck.table)
+    return (filter: unknown) => {
+      const predicates = Array.isArray(filter) ? filter : filter ? [filter] : [];
+      const matches = predicates.reduce(
+        (left, right) => sql`(${left}) AND (${right})`, sql`TRUE`,
+      );
+      // Keep excluded geometry as context; carry filter membership in Arrow, not WHERE.
+      return Query.from(bridgeDeck.table)
         .select(...selectColumns, {
-          geom: column(geometry.column),
+          geom: geometry.type === 'coordinates'
+            ? sql`ST_AsWKB(ST_Point(${column(geometry.x)}, ${column(geometry.y)}))`
+            : column(geometry.column),
+          [SPATIAL_MAP_MATCH_COLUMN]: sql`COALESCE(${matches}, FALSE)`,
         })
-        .where((filter ?? []) as MosaicWhereInput)
+        // Matching rows take priority when the context exceeds the map's row cap.
+        .orderby(...(predicates.length ? [desc(SPATIAL_MAP_MATCH_COLUMN)] : []))
         .limit(BRIDGE_MAP_ROW_LIMIT + 1);
+    };
   }, [bridgeDeck]);
   const {data: linkedSpatialMapData, error: mapError, client} = useMosaicClient({
     enabled: Boolean(bridgeDeck),
@@ -1876,6 +1876,13 @@ const BridgeGeoArrowDeckSlot: FC<{
     return () => window.clearTimeout(timeout);
   }, [table, truncated]);
   const {table: renderTable, truncated: renderTruncated} = renderState;
+  const linkedRowCount = useMemo(() => {
+    let count = 0;
+    for (const match of renderTable?.getChild(SPATIAL_MAP_MATCH_COLUMN) ?? []) {
+      if (match) count++;
+    }
+    return count;
+  }, [renderTable]);
   const {layerData, preparationError} = useMemo(() => {
     if (!renderTable || renderTable.numRows === 0) {
       return {layerData: null, preparationError: null};
@@ -1921,23 +1928,26 @@ const BridgeGeoArrowDeckSlot: FC<{
     const contextColor: Color = [100, 116, 139, 55];
     const coordinates = new Map(layerData.table.batches.map((batch) => [batch, {
       x: x ? batch.getChild(x) : null, y: y ? batch.getChild(y) : null,
+      matches: batch.getChild(SPATIAL_MAP_MATCH_COLUMN),
     }]));
     // GeoArrow supplies the original row within each Arrow batch, including multipart geometry.
-    const highlight: GeoArrowScatterplotLayerProps['getFillColor'] = selectedBounds && x && y
-      ? ({index, data}) => {
-          const vectors = coordinates.get(data.data);
-          const px = vectors?.x?.get(index);
-          const py = vectors?.y?.get(index);
-          return px != null && py != null
-            && px >= selectedBounds[0][0] && px <= selectedBounds[0][1]
-            && py >= selectedBounds[1][0] && py <= selectedBounds[1][1]
-            ? selectedColor : contextColor;
-        }
-      : undefined;
+    const highlight = (base: Color): GeoArrowScatterplotLayerProps['getFillColor'] =>
+      ({index, data}) => {
+        const vectors = coordinates.get(data.data);
+        if (!vectors?.matches?.get(index)) return contextColor;
+        if (!selectedBounds || !x || !y) return base;
+        const px = vectors.x?.get(index);
+        const py = vectors.y?.get(index);
+        return px != null && py != null
+          && px >= selectedBounds[0][0] && px <= selectedBounds[0][1]
+          && py >= selectedBounds[1][0] && py <= selectedBounds[1][1]
+          ? selectedColor : contextColor;
+      };
     const updateTriggers = {
       getFillColor: selectedBounds, getLineColor: selectedBounds, getColor: selectedBounds,
     };
 
+    // Rectangle brushing uses viewport coordinates, not per-feature GPU picking.
     switch (layerData.encoding) {
       case 'geoarrow.point':
       case 'geoarrow.multipoint':
@@ -1946,12 +1956,11 @@ const BridgeGeoArrowDeckSlot: FC<{
             id: `${layerId}-points`,
             data: layerData.table,
             getPosition: layerData.geometryColumn,
-            getFillColor: highlight ?? [230, 95, 70, 190],
+            getFillColor: highlight([230, 95, 70, 190]),
             updateTriggers,
             coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
             filled: true,
             stroked: false,
-            pickable: true,
             getRadius: 4,
             radiusUnits: 'pixels',
             radiusMinPixels: 2,
@@ -1966,13 +1975,12 @@ const BridgeGeoArrowDeckSlot: FC<{
             id: `${layerId}-paths`,
             data: layerData.table,
             getPath: layerData.geometryColumn as never,
-            getColor: highlight ?? [75, 100, 220, 220],
+            getColor: highlight([75, 100, 220, 220]),
             updateTriggers,
             getWidth: 1,
             widthUnits: 'pixels',
             widthMinPixels: 1,
             coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
-            pickable: true,
             parameters: {depthTest: false},
             _validate: false,
           }),
@@ -1984,12 +1992,11 @@ const BridgeGeoArrowDeckSlot: FC<{
             id: `${layerId}-polygons`,
             data: layerData.table,
             getPolygon: layerData.geometryColumn as never,
-            getFillColor: highlight ?? [75, 100, 220, 120],
-            getLineColor: highlight ?? [75, 100, 220, 240],
+            getFillColor: highlight([75, 100, 220, 120]),
+            getLineColor: highlight([75, 100, 220, 240]),
             updateTriggers,
             getLineWidth: 1,
             coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
-            pickable: true,
             parameters: {depthTest: false},
             _validate: false,
             // Small filtered polygons do not need an asynchronous worker.
@@ -2049,6 +2056,7 @@ const BridgeGeoArrowDeckSlot: FC<{
     <div
       className="absolute inset-0 overflow-hidden [&_[id^=view-]]:pointer-events-none"
       data-map-row-count={renderTable.numRows}
+      data-map-linked-row-count={linkedRowCount}
       data-map-encoding={layerData?.encoding}
       data-map-zoom={viewState.zoom}
     >
@@ -2109,7 +2117,7 @@ const BridgeGeoArrowDeckSlot: FC<{
           ) : null;
         }}
       </DeckGL>
-      {renderTable.numRows === 0 ? (
+      {linkedRowCount === 0 ? (
         <div className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center text-sm">
           No rows match the current brush.
         </div>
