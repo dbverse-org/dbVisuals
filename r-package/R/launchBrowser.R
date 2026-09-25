@@ -1,48 +1,31 @@
 #' Launch the dbVisuals browser
 #'
 #' Opens a browser-based dbVisuals workspace for interactive data exploration
-#' with support for deck.gl, Mosaic, and R visualizations. The interface connects
-#' to the current R session for executing R code.
+#' with support for deck.gl and Mosaic visualizations. A local, authenticated
+#' server provides access to the selected DuckDB database; arbitrary R code
+#' execution and AI features are not exposed.
 #'
-#' @param db_path Optional path to a DuckDB database file. If NULL, uses an in-memory database.
+#' @param db_path Optional path to a DuckDB database file. If NULL, starts a
+#'   standalone DuckDB-WASM workspace in the browser, independent of R data.
 #' @param project Optional `dbProject` R6 object (from the `dbProject` package)
 #'   or a `DBIConnection`. When supplied, `db_path` is derived from the
 #'   connection's underlying DuckDB file. Mutually exclusive with `db_path`.
-#' @param port Port number for the R server (default: 3001)
+#' @param port Port number for the R server when a database file is supplied (default: 3001)
 #' @param frontend_port Port number for the frontend server (default: 5173)
 #' @param browser Logical. Open browser automatically (default: TRUE)
 #' @param daemon Logical. Run server in background (default: FALSE)
 #' @param host Host address (default: "127.0.0.1")
-#' @param agent Logical. Enable the local dbVisuals agent API for AI-assisted
-#'   schema inspection, bounded SQL, materialization, and visualization
-#'   rendering (default: FALSE).
-#' @param agent_token Optional bearer token for the local agent API. If
-#'   \code{agent = TRUE} and no token is supplied, a random token is generated.
-#' @param agent_allow_write Logical. Allow the agent to create tables/views and
-#'   persist visualization metadata (default: FALSE).
-#' @param agent_allow_r Logical. Allow the agent to execute R code through the
-#'   existing SQL Rooms R execution path (default: FALSE).
-#' @param agent_max_rows Integer. Maximum rows returned by bounded agent SQL
-#'   queries and visualization data previews (default: 1000).
 #'
 #' @return Invisibly returns a list with server information.
 #' @export
 #'
 #' @examples
 #' \dontrun{
-#' # Launch with in-memory database
+#' # Launch a standalone browser workspace
 #' launchBrowser()
 #'
 #' # Launch with a specific GiottoDB database
 #' launchBrowser(db_path = "giottodb-visium.db")
-#'
-#' # Launch from a dbProject
-#' proj <- dbProject::dbProject(path = "my_project", dbdir = "my.duckdb")
-#' launchBrowser(project = proj)
-#'
-#' # Launch from a raw DBIConnection
-#' con <- DBI::dbConnect(duckdb::duckdb(), dbdir = "my.duckdb")
-#' launchBrowser(project = con)
 #'
 #' # Launch without opening browser
 #' launchBrowser(browser = FALSE)
@@ -54,21 +37,12 @@ launchBrowser <- function(
   frontend_port = 5173,
   browser = TRUE,
   daemon = FALSE,
-  host = "127.0.0.1",
-  agent = FALSE,
-  agent_token = NULL,
-  agent_allow_write = FALSE,
-  agent_allow_r = FALSE,
-  agent_max_rows = 1000L
+  host = "127.0.0.1"
 ) {
   db_path <- .resolve_db_path(db_path = db_path, project = project)
-  agent_config <- .agent_config(
-    enabled = agent,
-    token = agent_token,
-    allow_write = agent_allow_write,
-    allow_r = agent_allow_r,
-    max_rows = agent_max_rows
-  )
+  session_token <- if (!is.null(db_path)) {
+    paste(format(openssl::rand_bytes(32)), collapse = "")
+  } else NULL
 
   if (!is.null(project) && !is.null(db_path)) {
     warning(
@@ -108,32 +82,28 @@ launchBrowser <- function(
   .sqlrooms_env$project <- project
   .sqlrooms_env$r_server_port <- port
   .sqlrooms_env$launched_at <- Sys.time()
-  .apply_agent_config(agent_config)
+  .sqlrooms_env$session_token <- session_token
 
   frontend_base_url <- sprintf("http://%s:%d", host, frontend_port)
-  frontend_display_url <- sprintf("%s?r_port=%d", frontend_base_url, port)
-  if (isTRUE(agent_config$enabled)) {
-    frontend_display_url <- paste0(
-      frontend_display_url,
-      sprintf(
-        "&agent=1&agent_token=%s&agent_write=%s",
-        utils::URLencode(agent_config$token, reserved = TRUE),
-        if (isTRUE(agent_config$allow_write)) "1" else "0"
-      )
-    )
+  frontend_display_url <- if (is.null(db_path)) frontend_base_url else {
+    sprintf("%s?r_port=%d#r_token=%s", frontend_base_url, port, session_token)
   }
+  .sqlrooms_env$frontend_origin <- frontend_base_url
   .sqlrooms_env$frontend_display_url <- frontend_display_url
 
-  # Start R execution server
-  message(sprintf("Starting R server on port %d...", port))
-  r_process <- .start_r_server(
-    port = port,
-    host = host,
-    daemon = daemon,
-    db_path = db_path,
-    agent_config = agent_config,
-    frontend_display_url = frontend_display_url
-  )
+  # Only file-backed sessions need the native R query server.
+  r_process <- if (!is.null(db_path)) {
+    message(sprintf("Starting R server on port %d...", port))
+    .start_r_server(
+      port = port,
+      host = host,
+      daemon = daemon,
+      db_path = db_path,
+      session_token = session_token,
+      frontend_origin = frontend_base_url,
+      frontend_display_url = frontend_display_url
+    )
+  } else NULL
   if (inherits(r_process, "r_process")) {
     Sys.sleep(0.5)
     if (!r_process$is_alive()) {
@@ -156,25 +126,13 @@ launchBrowser <- function(
     warning(
       "SQL Rooms frontend assets not found. ",
       "The frontend needs to be built and bundled into inst/sqlrooms. ",
-      "Run `npm run build:r-package` from frontend/sqlrooms-ai. ",
-      "Starting R server only..."
-    )
-
-    message(sprintf(
-      "\nR execution server is running at: http://%s:%d",
-      host,
-      port
-    ))
-
-    message(
-      "\nTo use SQL Rooms, you need to:",
-      "\n1. Build the bundled frontend: cd frontend/sqlrooms-ai && npm run build:r-package",
-      "\n2. Reinstall or reload the R package",
-      "\n3. Or run sqlrooms separately and point it to this R server"
+      "Run `npm run build:r-package` from frontend/sqlrooms-ai, ",
+      "then reinstall or reload the R package."
     )
 
     return(invisible(list(
       r_process = r_process,
+      frontend_display_url = frontend_display_url,
       port = port,
       host = host,
       db_path = db_path
@@ -193,23 +151,18 @@ launchBrowser <- function(
   .sqlrooms_env$frontend_controller <- frontend_controller
 
   if (browser && interactive()) {
-    message(sprintf('Opening SQL Rooms in browser: %s', frontend_display_url))
+    message(sprintf('Opening SQL Rooms in browser: %s', frontend_base_url))
     utils::browseURL(frontend_display_url)
   }
 
   message("\nSQL Rooms is running!")
-  message(sprintf("  Frontend: %s", frontend_display_url))
-  message(sprintf("  R Server: http://%s:%d", host, port))
-
+  message(sprintf("  Frontend: %s", frontend_base_url))
   if (!is.null(db_path)) {
+    message(sprintf("  R Server: http://%s:%d", host, port))
     message(sprintf("  Database: %s", db_path))
+  } else {
+    message("  Database: standalone DuckDB-WASM in this browser")
   }
-  if (isTRUE(agent_config$enabled)) {
-    message("  Agent API: enabled at /api/agent")
-    message(sprintf("  Agent writes: %s",
-                    if (isTRUE(agent_config$allow_write)) "enabled" else "disabled"))
-  }
-
   message("\nUse stop_sqlrooms(your_object_name) to stop SQL Rooms.")
 
   return(invisible(list(
@@ -220,9 +173,7 @@ launchBrowser <- function(
     port = port,
     frontend_port = frontend_port,
     host = host,
-    db_path = db_path,
-    agent_enabled = isTRUE(agent_config$enabled),
-    agent_token = if (isTRUE(agent_config$enabled)) agent_config$token else NULL
+    db_path = db_path
   )))
 }
 
@@ -230,7 +181,7 @@ launchBrowser <- function(
 #' Stop SQL Rooms Processes
 #'
 #' Stops SQL Rooms background processes started by [launchBrowser()].
-#' This helper stops both the R execution server and the frontend server.
+#' This helper stops both the R database server and the frontend server.
 #'
 #' @param dashboard Optional list returned by [launchBrowser()]. If NULL,
 #'   stops the most recent SQL Rooms processes tracked in the package environment.
@@ -264,19 +215,19 @@ stop_sqlrooms <- function(dashboard = NULL) {
     frontend_stopped = FALSE
   )
 
-  r_process <- dashboard$r_process %||% .sqlrooms_env$r_server_process
+  r_process <- dashboard$r_process
   if (inherits(r_process, "r_process")) {
     if (r_process$is_alive()) {
       r_process$kill()
       status$r_server_stopped <- TRUE
     }
-    if (!r_process$is_alive()) {
+    if (!r_process$is_alive() &&
+        identical(r_process, .sqlrooms_env$r_server_process)) {
       .sqlrooms_env$r_server_process <- NULL
     }
   }
 
-  frontend_controller <- dashboard$frontend_controller %||%
-    .sqlrooms_env$frontend_controller
+  frontend_controller <- dashboard$frontend_controller
 
   if (is.list(frontend_controller) && identical(frontend_controller$type, "callr")) {
     proc <- frontend_controller$process
@@ -285,7 +236,8 @@ stop_sqlrooms <- function(dashboard = NULL) {
         proc$kill()
         status$frontend_stopped <- TRUE
       }
-      if (!proc$is_alive()) {
+      if (!proc$is_alive() &&
+          identical(frontend_controller, .sqlrooms_env$frontend_controller)) {
         .sqlrooms_env$frontend_controller <- NULL
       }
     }
@@ -293,7 +245,6 @@ stop_sqlrooms <- function(dashboard = NULL) {
 
   .invalidate_arrow_conn()
   .invalidate_write_conn()
-  .invalidate_agent_read_conn()
 
   if (status$r_server_stopped || status$frontend_stopped) {
     message("SQL Rooms stopped.")
@@ -305,10 +256,10 @@ stop_sqlrooms <- function(dashboard = NULL) {
 }
 
 
-#' Start R Execution Server for SQL Rooms
+#' Start R Database Server for SQL Rooms
 #'
 #' Launches a background R process using callr that runs an httpuv server to handle
-#' R code execution requests from the SQL Rooms frontend.
+#' database requests from the SQL Rooms frontend.
 #'
 #' @param port Integer. Port number for the R server (default: 3001)
 #' @param host Character. Host address to bind to (default: "127.0.0.1")
@@ -324,7 +275,8 @@ stop_sqlrooms <- function(dashboard = NULL) {
   host = "127.0.0.1",
   daemon = FALSE,
   db_path = NULL,
-  agent_config = .agent_config(FALSE),
+  session_token,
+  frontend_origin,
   frontend_display_url = NULL
 ) {
   if (!requireNamespace("callr", quietly = TRUE)) {
@@ -338,7 +290,8 @@ stop_sqlrooms <- function(dashboard = NULL) {
   }
 
   proc <- callr::r_bg(
-    func = function(port, host, db_path, agent_config, frontend_display_url) {
+    func = function(port, host, db_path, session_token, frontend_origin,
+                        frontend_display_url) {
       loadNamespace("dbVisuals")
       ns <- asNamespace("dbVisuals")
 
@@ -347,15 +300,13 @@ stop_sqlrooms <- function(dashboard = NULL) {
       sql_env$r_server_port <- port
       sql_env$launched_at <- Sys.time()
       sql_env$frontend_display_url <- frontend_display_url
-      apply_agent_config <- get(".apply_agent_config", envir = ns)
-      apply_agent_config(agent_config)
+      sql_env$session_token <- session_token
+      sql_env$frontend_origin <- frontend_origin
 
       cleanup_arrow <- get(".invalidate_arrow_conn", envir = ns)
       cleanup_write <- get(".invalidate_write_conn", envir = ns)
-      cleanup_agent <- get(".invalidate_agent_read_conn", envir = ns)
       on.exit(try(cleanup_arrow(), silent = TRUE), add = TRUE)
       on.exit(try(cleanup_write(), silent = TRUE), add = TRUE)
-      on.exit(try(cleanup_agent(), silent = TRUE), add = TRUE)
 
       app_builder <- get(".build_sqlrooms_shiny_app", envir = ns)
       app <- app_builder()
@@ -374,7 +325,8 @@ stop_sqlrooms <- function(dashboard = NULL) {
       port = port,
       host = host,
       db_path = db_path,
-      agent_config = agent_config,
+      session_token = session_token,
+      frontend_origin = frontend_origin,
       frontend_display_url = frontend_display_url
     ),
     supervise = TRUE
@@ -389,7 +341,7 @@ stop_sqlrooms <- function(dashboard = NULL) {
 #' Build the SQL Rooms Shiny application
 #'
 #' Creates a custom httpuv application that handles API routing for SQL Rooms.
-#' Routes include R code execution, session info, and database downloads.
+#' Routes include Arrow queries, session info, and database downloads.
 #'
 #' @return A list with a 'call' function that implements the httpuv app interface.
 #'   The call function takes a request object and returns an HTTP response.
@@ -397,72 +349,54 @@ stop_sqlrooms <- function(dashboard = NULL) {
 #' @keywords internal
 #' @noRd
 .build_sqlrooms_shiny_app <- function() {
-  # Create custom httpuv app that handles API routes
-  list(
-    call = function(req) {
-      path <- req$PATH_INFO %||% "/"
-
-      # Handle API routes
-      if (
-        startsWith(path, "/api/sqlrooms-session") || path == "/sqlrooms-session"
-      ) {
-        return(.handle_sqlrooms_session(req))
-      }
-      if (startsWith(path, "/api/sqlrooms-db") || path == "/sqlrooms-db") {
-        return(.handle_sqlrooms_database(req))
-      }
-      if (startsWith(path, "/api/execute-r") || path == "/execute-r") {
-        return(.handle_r_execution(req))
-      }
-      if (startsWith(path, "/api/arrow-query") || path == "/arrow-query") {
-        return(.handle_arrow_query(req))
-      }
-      if (startsWith(path, "/api/r-tables") || path == "/r-tables") {
-        return(.handle_r_tables(req))
-      }
-      if (startsWith(path, "/api/agent") || path == "/agent") {
-        return(.handle_agent_request(req))
-      }
-
-      # Default Shiny UI response
-      return(list(
-        status = 200L,
-        headers = list(
-          "Content-Type" = "text/html; charset=UTF-8",
-          "Access-Control-Allow-Origin" = "*"
-        ),
-        body = paste0(
-          "<!DOCTYPE html>",
-          "<html><head><title>SQL Rooms R Server</title></head>",
-          "<body>",
-          "<h3>SQL Rooms R Server</h3>",
-          "<p>This server handles R code execution for SQL Rooms.</p>",
-          "<p>API endpoints available:</p>",
-          "<ul>",
-          "<li>/api/sqlrooms-session - Session information</li>",
-          "<li>/api/sqlrooms-db - Database download</li>",
-          "<li>/api/execute-r - Execute R code</li>",
-          "</ul>",
-          "</body></html>"
-        )
-      ))
-    },
-    onHeaders = function(req) {
-      # Handle CORS preflight
-      if (identical(toupper(req$REQUEST_METHOD %||% ""), "OPTIONS")) {
-        return(list(
-          status = 204L,
-          headers = list(
-            "Access-Control-Allow-Origin" = "*",
-            "Access-Control-Allow-Methods" = "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers" = "Content-Type, Authorization"
-          ),
-          body = ""
-        ))
-      }
-      NULL
-    }
+  routes <- list(
+    "/sqlrooms-session" = list(method = "GET", handler = .handle_sqlrooms_session),
+    "/sqlrooms-db" = list(method = "GET", handler = .handle_sqlrooms_database),
+    "/arrow-query" = list(method = "POST", handler = .handle_arrow_query),
+    "/r-tables" = list(method = "GET", handler = .handle_r_tables)
   )
+
+  list(call = function(req) {
+    path <- sub("^/api(?=/)", "", req$PATH_INFO %||% "/", perl = TRUE)
+    route <- routes[[path]]
+    respond <- function(status, message, headers = list()) {
+      headers[["Content-Type"]] <- "application/json"
+      headers[["Cache-Control"]] <- "no-store"
+      list(status = status, headers = headers, body = jsonlite::toJSON(
+        list(success = FALSE, error = message), auto_unbox = TRUE
+      ))
+    }
+    if (is.null(route)) return(respond(404L, "Unknown endpoint."))
+
+    origin <- req$HTTP_ORIGIN %||% ""
+    allowed_origin <- .sqlrooms_env$frontend_origin %||% ""
+    if (nzchar(origin) && !identical(origin, allowed_origin)) {
+      return(respond(403L, "Only the launched frontend origin is allowed."))
+    }
+    cors <- list("Vary" = "Origin", "Cache-Control" = "no-store")
+    if (nzchar(origin)) cors[["Access-Control-Allow-Origin"]] <- origin
+    method <- toupper(req$REQUEST_METHOD %||% "GET")
+    if (identical(method, "OPTIONS")) {
+      return(list(status = 204L, body = "", headers = c(cors, list(
+        "Access-Control-Allow-Methods" = paste(route$method, "OPTIONS", sep = ", "),
+        "Access-Control-Allow-Headers" = "Content-Type, Accept, Authorization"
+      ))))
+    }
+    token <- .sqlrooms_env$session_token %||% ""
+    if (!nzchar(token) ||
+        !identical(req$HTTP_AUTHORIZATION %||% "", paste("Bearer", token))) {
+      return(respond(401L, "Missing or invalid session bearer token.",
+                     c(cors, list("WWW-Authenticate" = "Bearer"))))
+    }
+    if (!identical(method, route$method)) {
+      return(respond(405L, "Method not allowed.",
+                     c(cors, list("Allow" = route$method))))
+    }
+
+    response <- route$handler(req)
+    response$headers <- c(response$headers, cors)
+    response
+  })
 }
 
 
@@ -612,301 +546,6 @@ stop_sqlrooms <- function(dashboard = NULL) {
 }
 
 
-#' Handle R Code Execution Request
-#'
-#' Processes HTTP requests to execute R code from the SQL Rooms frontend.
-#' Captures output, errors, and warnings. Handles CORS preflight requests.
-#'
-#' @param req List. HTTP request object with REQUEST_METHOD, PATH_INFO, body, etc.
-#'   Expected JSON body format: \code{\{"code": "R code string", "runId": "optional_id"\}}
-#'
-#' @return List with HTTP response: status (integer), headers (list), body (character).
-#'   Body is JSON with success (logical), output (character), error (character),
-#'   warnings (character vector), and runId (character).
-#'
-#' @keywords internal
-#' @noRd
-.handle_r_execution <- function(req) {
-  method <- toupper(req$REQUEST_METHOD %||% "POST")
-
-  cors_headers <- list(
-    "Content-Type" = "application/json",
-    "Access-Control-Allow-Origin" = "*",
-    "Access-Control-Allow-Methods" = "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers" = "Content-Type"
-  )
-
-  if (identical(method, "OPTIONS")) {
-    return(list(
-      status = 204L,
-      headers = cors_headers,
-      body = ""
-    ))
-  }
-
-  # Parse request body
-  raw_body <- NULL
-  if (!is.null(req$rook.input)) {
-    raw_body <- req$rook.input$read()
-  } else if (!is.null(req$body)) {
-    raw_body <- req$body
-  }
-  if (is.null(raw_body) || length(raw_body) == 0) {
-    raw_body <- charToRaw("{}")
-  }
-
-  body <- jsonlite::fromJSON(rawToChar(raw_body))
-
-  code <- body$code
-  run_id <- body$runId %||% paste0("run_", format(Sys.time(), "%Y%m%d_%H%M%S"))
-
-  if (is.null(code) || code == "") {
-    return(list(
-      status = 400L,
-      headers = cors_headers,
-      body = jsonlite::toJSON(
-        list(
-          success = FALSE,
-          error = "No code provided"
-        ),
-        auto_unbox = TRUE
-      )
-    ))
-  }
-
-  # Capture text output (printed values + messages) and warnings.
-  # The SPA displays the `output` and `warnings` fields directly, so we
-  # combine the printed value of the final expression into `output` rather
-  # than returning it under a separate `result` key (the SPA ignores that).
-  output_text <- character(0)
-  warnings_text <- character(0)
-  output_conn <- textConnection("output_text", "w", local = TRUE)
-  sink(output_conn, type = "output")
-  sink(output_conn, type = "message")
-
-  eval_result <- NULL
-  result <- tryCatch(
-    withCallingHandlers(
-      {
-        eval_result <- eval(parse(text = code), envir = .GlobalEnv)
-
-        captured <- .capture_visualization_output(eval_result)
-
-        list(
-          success = TRUE,
-          plot = captured$plot,
-          html = captured$html
-        )
-      },
-      warning = function(w) {
-        warnings_text <<- c(warnings_text, conditionMessage(w))
-        invokeRestart("muffleWarning")
-      }
-    ),
-    error = function(e) {
-      list(
-        success = FALSE,
-        error = conditionMessage(e)
-      )
-    },
-    finally = {
-      sink(type = "message")
-      sink(type = "output")
-      close(output_conn)
-    }
-  )
-
-  if (
-    isTRUE(result$success) &&
-      !is.null(eval_result) &&
-      !inherits(eval_result, c("htmlwidget", "ggplot"))
-  ) {
-    rendered <- tryCatch(
-      utils::capture.output(eval_result),
-      error = function(e) character()
-    )
-    output_text <- c(output_text, rendered)
-  }
-
-  # SPA contract: `output` and `warnings` are STRINGS, not arrays of lines.
-  # The frontend normalizer (nxe) returns null for non-string values, which
-  # silently suppresses display.
-  result$output <- if (length(output_text) > 0) {
-    paste(output_text, collapse = "\n")
-  } else {
-    ""
-  }
-  if (length(warnings_text) > 0) {
-    result$warnings <- paste(warnings_text, collapse = "\n")
-  }
-  result$runId <- run_id
-
-  # Reshape exported tables into the array of {name, data, ...} objects the
-  # SPA expects. The user-facing helper sqlrooms_export_table() stores them
-  # as a named list keyed by table name.
-  if (exists("sqlrooms_exported_tables", envir = .sqlrooms_env)) {
-    exported <- .sqlrooms_env$sqlrooms_exported_tables
-    rm("sqlrooms_exported_tables", envir = .sqlrooms_env)
-    if (is.list(exported) && length(exported) > 0) {
-      result$tables <- lapply(names(exported), function(nm) {
-        df <- exported[[nm]]
-        list(
-          name = nm,
-          data = df,
-          row_count = nrow(df),
-          replace = TRUE
-        )
-      })
-    }
-  }
-
-  return(list(
-    status = 200L,
-    headers = cors_headers,
-    body = jsonlite::toJSON(
-      result,
-      auto_unbox = TRUE,
-      force = TRUE,
-      null = "null",
-      na = "null"
-    )
-  ))
-}
-
-
-#' Capture Visualization Output
-#'
-#' Inspects the value returned by an evaluated R cell and extracts a renderable
-#' artifact for the SQL Rooms SPA. Two artifact types are produced:
-#' \describe{
-#'   \item{plot}{A list \code{list(type = "png", data = <base64>)} for ggplot
-#'     objects. Returned under the JSON \code{plot} field.}
-#'   \item{html}{A standalone self-contained HTML document (string) for any
-#'     \code{htmlwidget}, including \code{rDeckgl::deckgl()} and
-#'     \code{rMosaic::mosaic()} outputs. Returned under the JSON \code{html}
-#'     field, which the SPA renders inside a sandboxed iframe.}
-#' }
-#'
-#' @param result Value returned by the evaluated R expression
-#' @return list with elements `plot` (or NULL) and `html` (or NULL)
-#'
-#' @keywords internal
-#' @noRd
-.capture_visualization_output <- function(result) {
-  out <- list(plot = NULL, html = NULL)
-  if (is.null(result)) return(out)
-
-  # ggplot -> base64 PNG
-  if (inherits(result, "ggplot")) {
-    tmp_file <- tempfile(fileext = ".png")
-    on.exit(unlink(tmp_file), add = TRUE)
-    grDevices::png(tmp_file, width = 800, height = 600)
-    print(result)
-    grDevices::dev.off()
-    if (requireNamespace("base64enc", quietly = TRUE)) {
-      png_b64 <- base64enc::base64encode(tmp_file)
-    } else {
-      png_b64 <- base64encode_manual(tmp_file)
-    }
-    out$plot <- list(type = "png", data = png_b64)
-    return(out)
-  }
-
-  # htmlwidget (rDeckgl, rMosaic, plotly, leaflet, ...) -> standalone HTML
-  if (inherits(result, "htmlwidget")) {
-    if (!requireNamespace("htmlwidgets", quietly = TRUE)) {
-      return(out)
-    }
-    tmp_dir <- tempfile("widget_")
-    dir.create(tmp_dir, recursive = TRUE)
-    on.exit(unlink(tmp_dir, recursive = TRUE), add = TRUE)
-    tmp_html <- file.path(tmp_dir, "index.html")
-    selfcontained_ok <- tryCatch({
-      htmlwidgets::saveWidget(
-        result,
-        file = tmp_html,
-        selfcontained = TRUE
-      )
-      TRUE
-    }, error = function(e) FALSE)
-    if (!selfcontained_ok) {
-      # pandoc is required for selfcontained=TRUE. Fall back to
-      # selfcontained=FALSE then inline the dependency files manually so
-      # the resulting HTML works inside an iframe srcdoc.
-      htmlwidgets::saveWidget(result, file = tmp_html, selfcontained = FALSE)
-      .inline_widget_assets(tmp_html)
-    }
-    if (file.exists(tmp_html)) {
-      out$html <- paste(readLines(tmp_html, warn = FALSE), collapse = "\n")
-    }
-    return(out)
-  }
-
-  out
-}
-
-#' Inline external script/link references into an htmlwidget HTML file
-#'
-#' Replaces `<script src="...">` and `<link rel="stylesheet" href="...">`
-#' tags whose targets are local files with inline `<script>` and `<style>`
-#' blocks. This is the fallback when `pandoc` is not available so that the
-#' resulting HTML can be served in an iframe `srcdoc`.
-#'
-#' @keywords internal
-#' @noRd
-.inline_widget_assets <- function(html_file) {
-  base_dir <- dirname(html_file)
-  html <- paste(readLines(html_file, warn = FALSE), collapse = "\n")
-
-  resolve <- function(href) {
-    href <- sub("^[\"']|[\"']$", "", href)
-    href <- utils::URLdecode(href)
-    candidate <- file.path(base_dir, href)
-    if (file.exists(candidate)) candidate else NA_character_
-  }
-
-  read_asset <- function(path) {
-    paste(readLines(path, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
-  }
-
-  # Inline <script src="..."></script>
-  script_pat <- '<script[^>]*\\ssrc=(["\'])([^"\']+)\\1[^>]*>\\s*</script>'
-  m <- gregexpr(script_pat, html, perl = TRUE)[[1]]
-  if (m[1] != -1) {
-    matches <- regmatches(html, list(m))[[1]]
-    for (tag in unique(matches)) {
-      href <- sub(script_pat, "\\2", tag, perl = TRUE)
-      path <- resolve(href)
-      if (!is.na(path)) {
-        body <- read_asset(path)
-        repl <- paste0("<script>\n", body, "\n</script>")
-        html <- gsub(tag, repl, html, fixed = TRUE)
-      }
-    }
-  }
-
-  # Inline <link rel="stylesheet" href="...">
-  link_pat <- '<link[^>]*\\srel=["\']stylesheet["\'][^>]*\\shref=(["\'])([^"\']+)\\1[^>]*/?>'
-  link_pat2 <- '<link[^>]*\\shref=(["\'])([^"\']+)\\1[^>]*\\srel=["\']stylesheet["\'][^>]*/?>'
-  for (pat in c(link_pat, link_pat2)) {
-    m <- gregexpr(pat, html, perl = TRUE)[[1]]
-    if (m[1] == -1) next
-    matches <- regmatches(html, list(m))[[1]]
-    for (tag in unique(matches)) {
-      href <- sub(pat, "\\2", tag, perl = TRUE)
-      path <- resolve(href)
-      if (!is.na(path)) {
-        body <- read_asset(path)
-        repl <- paste0("<style>\n", body, "\n</style>")
-        html <- gsub(tag, repl, html, fixed = TRUE)
-      }
-    }
-  }
-
-  writeLines(html, html_file, useBytes = TRUE)
-  invisible(NULL)
-}
-
 #' Get or create the cached in-memory DuckDB connection used by
 #' `/api/arrow-query`. Caches a single connection per `db_path`, attaching
 #' the requested alias on demand. Reuses across requests so that the
@@ -976,22 +615,8 @@ stop_sqlrooms <- function(dashboard = NULL) {
 #' @keywords internal
 #' @noRd
 .handle_arrow_query <- function(req) {
-  method <- toupper(req$REQUEST_METHOD %||% "POST")
-
-  base_headers <- list(
-    "Access-Control-Allow-Origin" = "*",
-    "Access-Control-Allow-Methods" = "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers" = "Content-Type, Accept"
-  )
-  json_headers <- c(base_headers, list("Content-Type" = "application/json"))
-  arrow_headers <- c(base_headers, list(
-    "Content-Type" = "application/vnd.apache.arrow.stream",
-    "Cache-Control" = "no-store"
-  ))
-
-  if (identical(method, "OPTIONS")) {
-    return(list(status = 204L, headers = base_headers, body = ""))
-  }
+  json_headers <- list("Content-Type" = "application/json")
+  arrow_headers <- list("Content-Type" = "application/vnd.apache.arrow.stream")
 
   raw_body <- NULL
   if (!is.null(req$rook.input)) {
@@ -1250,24 +875,13 @@ stop_sqlrooms <- function(dashboard = NULL) {
 #' @keywords internal
 #' @noRd
 .handle_r_tables <- function(req) {
-  method <- toupper(req$REQUEST_METHOD %||% "GET")
-
-  cors_headers <- list(
-    "Content-Type" = "application/json",
-    "Access-Control-Allow-Origin" = "*",
-    "Access-Control-Allow-Methods" = "GET, OPTIONS",
-    "Access-Control-Allow-Headers" = "Content-Type"
-  )
-
-  if (identical(method, "OPTIONS")) {
-    return(list(status = 204L, headers = cors_headers, body = ""))
-  }
+  headers <- list("Content-Type" = "application/json")
 
   db_path <- .sqlrooms_env$db_path
   if (is.null(db_path) || !nzchar(db_path) || !file.exists(db_path)) {
     return(list(
       status = 200L,
-      headers = cors_headers,
+      headers = headers,
       body = jsonlite::toJSON(
         list(success = TRUE, tables = list()), auto_unbox = TRUE
       )
@@ -1293,7 +907,7 @@ stop_sqlrooms <- function(dashboard = NULL) {
   if (is.null(tables)) {
     return(list(
       status = 500L,
-      headers = cors_headers,
+      headers = headers,
       body = jsonlite::toJSON(
         list(success = FALSE, error = "Failed to enumerate tables"),
         auto_unbox = TRUE
@@ -1303,992 +917,12 @@ stop_sqlrooms <- function(dashboard = NULL) {
 
   list(
     status = 200L,
-    headers = cors_headers,
+    headers = headers,
     body = jsonlite::toJSON(
       list(success = TRUE, tables = tables),
       auto_unbox = TRUE, dataframe = "rows"
     )
   )
-}
-
-
-#' Build normalized agent configuration
-#' @keywords internal
-#' @noRd
-.agent_config <- function(enabled = FALSE,
-                          token = NULL,
-                          allow_write = FALSE,
-                          allow_r = FALSE,
-                          max_rows = 1000L) {
-  enabled <- isTRUE(enabled)
-  raw_max_rows <- max_rows %||% 1000L
-  max_rows <- suppressWarnings(as.integer(raw_max_rows[[1]]))
-  if (is.na(max_rows) || max_rows < 1L) max_rows <- 1000L
-
-  if (enabled) {
-    if (is.null(token) || !is.character(token) || !nzchar(token[[1]])) {
-      token <- .agent_random_token()
-    } else {
-      token <- token[[1]]
-    }
-  } else {
-    token <- NULL
-  }
-
-  list(
-    enabled = enabled,
-    token = token,
-    allow_write = isTRUE(allow_write),
-    allow_r = isTRUE(allow_r),
-    max_rows = max_rows
-  )
-}
-
-#' Apply agent configuration to package state
-#' @keywords internal
-#' @noRd
-.apply_agent_config <- function(config) {
-  config <- config %||% .agent_config(FALSE)
-  .sqlrooms_env$agent_enabled <- isTRUE(config$enabled)
-  .sqlrooms_env$agent_token <- config$token %||% NULL
-  .sqlrooms_env$agent_allow_write <- isTRUE(config$allow_write)
-  .sqlrooms_env$agent_allow_r <- isTRUE(config$allow_r)
-  .sqlrooms_env$agent_max_rows <- as.integer(config$max_rows %||% 1000L)
-  invisible(config)
-}
-
-#' Generate a local bearer token for the agent API
-#' @keywords internal
-#' @noRd
-.agent_random_token <- function() {
-  alphabet <- c(letters, LETTERS, 0:9)
-  paste(sample(alphabet, 40L, replace = TRUE), collapse = "")
-}
-
-#' Handle dbVisuals local agent API requests
-#' @keywords internal
-#' @noRd
-.handle_agent_request <- function(req) {
-  origin <- req$HTTP_ORIGIN %||% NULL
-  method <- toupper(req$REQUEST_METHOD %||% "GET")
-
-  if (!.agent_origin_allowed(origin)) {
-    return(.agent_json_response(
-      403L,
-      list(success = FALSE, error = "Agent API only accepts local origins."),
-      origin = origin
-    ))
-  }
-
-  if (identical(method, "OPTIONS")) {
-    return(.agent_empty_response(204L, origin = origin))
-  }
-
-  if (!isTRUE(.sqlrooms_env$agent_enabled)) {
-    return(.agent_json_response(
-      404L,
-      list(success = FALSE, error = "Agent API is not enabled."),
-      origin = origin
-    ))
-  }
-
-  if (!.agent_authorized(req)) {
-    return(.agent_json_response(
-      401L,
-      list(success = FALSE, error = "Missing or invalid agent bearer token."),
-      origin = origin,
-      headers = list("WWW-Authenticate" = "Bearer")
-    ))
-  }
-
-  path <- .agent_path(req$PATH_INFO %||% "/")
-  body <- if (method %in% c("POST", "PUT", "PATCH")) {
-    .agent_request_body(req)
-  } else {
-    list()
-  }
-
-  tryCatch({
-    if (path %in% c("", "/", "session")) {
-      return(.agent_session(origin))
-    }
-    if (identical(path, "tables")) {
-      return(.agent_tables(origin))
-    }
-    if (identical(path, "describe")) {
-      return(.agent_describe(body, origin))
-    }
-    if (identical(path, "query")) {
-      return(.agent_query(body, origin))
-    }
-    if (identical(path, "materialize")) {
-      return(.agent_materialize(body, origin))
-    }
-    if (identical(path, "visualization")) {
-      return(.agent_visualization(body, origin))
-    }
-    if (identical(path, "execute-r")) {
-      return(.agent_execute_r(body, origin))
-    }
-    .agent_json_response(
-      404L,
-      list(success = FALSE, error = paste("Unknown agent endpoint:", path)),
-      origin = origin
-    )
-  }, error = function(e) {
-    .agent_json_response(
-      500L,
-      list(success = FALSE, error = conditionMessage(e)),
-      origin = origin
-    )
-  })
-}
-
-#' @keywords internal
-#' @noRd
-.agent_session <- function(origin = NULL) {
-  db_path <- .sqlrooms_env$db_path %||% NULL
-  .agent_json_response(
-    200L,
-    list(
-      success = TRUE,
-      db_available = !is.null(db_path) && nzchar(db_path) && file.exists(db_path),
-      db_path = db_path %||% NA_character_,
-      frontend_url = .sqlrooms_env$frontend_display_url %||% NA_character_,
-      r_server_port = .sqlrooms_env$r_server_port %||% NA_integer_,
-      launched_at = as.character(.sqlrooms_env$launched_at %||% NA_character_),
-      permissions = list(
-        write = isTRUE(.sqlrooms_env$agent_allow_write),
-        r = isTRUE(.sqlrooms_env$agent_allow_r),
-        max_rows = .agent_max_rows()
-      )
-    ),
-    origin = origin
-  )
-}
-
-#' @keywords internal
-#' @noRd
-.agent_tables <- function(origin = NULL) {
-  con <- .get_agent_read_conn()
-  if (is.null(con)) {
-    return(.agent_json_response(
-      400L,
-      list(success = FALSE, error = "No database available."),
-      origin = origin
-    ))
-  }
-
-  tables <- DBI::dbGetQuery(con, "
-    SELECT table_catalog, table_schema, table_name, table_type
-    FROM information_schema.tables
-    WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
-    ORDER BY table_schema, table_name
-  ")
-
-  if (nrow(tables) > 0L) {
-    tables$qualified_name <- vapply(seq_len(nrow(tables)), function(i) {
-      .agent_qualified_name(tables$table_schema[[i]], tables$table_name[[i]])
-    }, character(1))
-    tables$fully_qualified_name <- vapply(seq_len(nrow(tables)), function(i) {
-      .agent_qualified_name(
-        tables$table_schema[[i]],
-        tables$table_name[[i]],
-        tables$table_catalog[[i]]
-      )
-    }, character(1))
-  } else {
-    tables$qualified_name <- character()
-    tables$fully_qualified_name <- character()
-  }
-
-  .agent_json_response(
-    200L,
-    list(success = TRUE, tables = tables),
-    origin = origin
-  )
-}
-
-#' @keywords internal
-#' @noRd
-.agent_describe <- function(body, origin = NULL) {
-  con <- .get_agent_read_conn()
-  if (is.null(con)) {
-    return(.agent_json_response(
-      400L,
-      list(success = FALSE, error = "No database available."),
-      origin = origin
-    ))
-  }
-
-  table <- body$table %||% NULL
-  schema <- body$schema %||% "main"
-  catalog <- body$catalog %||% NULL
-  if (is.null(table) || !is.character(table) || !nzchar(table[[1]])) {
-    return(.agent_json_response(
-      400L,
-      list(success = FALSE, error = "Missing required 'table'."),
-      origin = origin
-    ))
-  }
-
-  where <- c(
-    sprintf("table_name = %s", .agent_sql_string(con, table[[1]])),
-    sprintf("table_schema = %s", .agent_sql_string(con, schema[[1]]))
-  )
-  if (!is.null(catalog) && is.character(catalog) && nzchar(catalog[[1]])) {
-    where <- c(where, sprintf(
-      "table_catalog = %s",
-      .agent_sql_string(con, catalog[[1]])
-    ))
-  }
-
-  columns <- DBI::dbGetQuery(con, sprintf(
-    "SELECT table_catalog, table_schema, table_name, column_name,
-            ordinal_position, column_default, is_nullable, data_type
-     FROM information_schema.columns
-     WHERE %s
-     ORDER BY ordinal_position",
-    paste(where, collapse = " AND ")
-  ))
-
-  .agent_json_response(
-    200L,
-    list(
-      success = TRUE,
-      relation = list(
-        catalog = catalog %||% NA_character_,
-        schema = schema[[1]],
-        table = table[[1]]
-      ),
-      columns = columns
-    ),
-    origin = origin
-  )
-}
-
-#' @keywords internal
-#' @noRd
-.agent_query <- function(body, origin = NULL) {
-  con <- .get_agent_read_conn()
-  if (is.null(con)) {
-    return(.agent_json_response(
-      400L,
-      list(success = FALSE, error = "No database available."),
-      origin = origin
-    ))
-  }
-
-  sql <- body$sql %||% NULL
-  if (is.null(sql) || !is.character(sql) || !nzchar(sql[[1]])) {
-    return(.agent_json_response(
-      400L,
-      list(success = FALSE, error = "Missing required 'sql'."),
-      origin = origin
-    ))
-  }
-
-  result <- .agent_bounded_query(
-    con = con,
-    sql = sql[[1]],
-    limit = body$limit %||% NULL
-  )
-
-  .agent_json_response(
-    200L,
-    list(
-      success = TRUE,
-      sql = sql[[1]],
-      limit = result$limit,
-      row_count = nrow(result$rows),
-      truncated = isTRUE(result$truncated),
-      rows = result$rows
-    ),
-    origin = origin
-  )
-}
-
-#' @keywords internal
-#' @noRd
-.agent_materialize <- function(body, origin = NULL) {
-  if (!isTRUE(.sqlrooms_env$agent_allow_write)) {
-    return(.agent_json_response(
-      403L,
-      list(success = FALSE, error = "Agent write mode is disabled."),
-      origin = origin
-    ))
-  }
-
-  sql <- body$sql %||% NULL
-  name <- body$name %||% NULL
-  kind <- tolower(body$kind %||% "table")
-  overwrite <- !identical(body$overwrite, FALSE)
-
-  if (is.null(sql) || !is.character(sql) || !nzchar(sql[[1]])) {
-    return(.agent_json_response(
-      400L,
-      list(success = FALSE, error = "Missing required 'sql'."),
-      origin = origin
-    ))
-  }
-  if (!.agent_simple_identifier(name)) {
-    return(.agent_json_response(
-      400L,
-      list(success = FALSE, error = "'name' must be a simple SQL identifier."),
-      origin = origin
-    ))
-  }
-  if (!kind %in% c("table", "view")) {
-    return(.agent_json_response(
-      400L,
-      list(success = FALSE, error = "'kind' must be 'table' or 'view'."),
-      origin = origin
-    ))
-  }
-
-  .invalidate_agent_read_conn()
-  con <- .resolve_target_conn(NULL)
-  if (is.null(con) || !DBI::dbIsValid(con)) {
-    return(.agent_json_response(
-      400L,
-      list(success = FALSE, error = "No writable database connection available."),
-      origin = origin
-    ))
-  }
-  for (extension_sql in c("INSTALL spatial", "LOAD spatial")) {
-    try(DBI::dbExecute(con, extension_sql), silent = TRUE)
-  }
-
-  quoted_name <- as.character(DBI::dbQuoteIdentifier(con, name[[1]]))
-  or_replace <- if (isTRUE(overwrite)) "OR REPLACE " else ""
-  ddl <- if (identical(kind, "table")) {
-    sprintf(
-      "CREATE %sTABLE %s AS SELECT * FROM (%s) AS __dbvisuals_agent_src__",
-      or_replace,
-      quoted_name,
-      sql[[1]]
-    )
-  } else {
-    sprintf(
-      "CREATE %sVIEW %s AS SELECT * FROM (%s) AS __dbvisuals_agent_src__",
-      or_replace,
-      quoted_name,
-      sql[[1]]
-    )
-  }
-  DBI::dbExecute(con, ddl)
-  .invalidate_agent_read_conn()
-  .invalidate_arrow_conn()
-
-  .agent_json_response(
-    200L,
-    list(
-      success = TRUE,
-      kind = kind,
-      relation = list(
-        schema = "main",
-        name = name[[1]],
-        qualified_name = .agent_qualified_name("main", name[[1]])
-      )
-    ),
-    origin = origin
-  )
-}
-
-#' @keywords internal
-#' @noRd
-.agent_visualization <- function(body, origin = NULL) {
-  engine <- tolower(body$engine %||% "mosaic_gl")
-  if (engine %in% c("mosaic.gl", "mosaic-gl")) engine <- "mosaic_gl"
-  if (engine %in% c("deck-json", "deckjson")) engine <- "deck_json"
-  if (!engine %in% c("deckgl", "deck_json", "mosaic", "mosaic_gl")) {
-    return(.agent_json_response(
-      400L,
-      list(success = FALSE, error = "Unknown visualization engine."),
-      origin = origin
-    ))
-  }
-  spec <- body$spec %||% NULL
-  if (is.null(spec) || !is.list(spec)) {
-    return(.agent_json_response(
-      400L,
-      list(success = FALSE, error = "Missing required list/object 'spec'."),
-      origin = origin
-    ))
-  }
-
-  data_name <- body$data_name %||% "agent_data"
-  data_sql <- body$data_sql %||% NULL
-  if (identical(engine, "deck_json")) {
-    normalized <- .agent_normalize_deck_json(
-      spec = spec,
-      datasets = body$datasets %||% list(),
-      data_sql = data_sql,
-      data_name = data_name
-    )
-    spec <- normalized$spec
-    data_sql <- data_sql %||% normalized$data_sql
-    data_name <- normalized$data_name
-  }
-  if (!is.character(data_name) || !nzchar(data_name[[1]])) {
-    data_name <- "agent_data"
-  }
-  data <- NULL
-  if (!is.null(data_sql) && is.character(data_sql) && nzchar(data_sql[[1]])) {
-    con <- .get_agent_read_conn()
-    if (is.null(con)) {
-      return(.agent_json_response(
-        400L,
-        list(success = FALSE, error = "No database available."),
-        origin = origin
-      ))
-    }
-    data_result <- .agent_bounded_query(
-      con = con,
-      sql = data_sql[[1]],
-      limit = body$limit %||% NULL
-    )
-    data <- stats::setNames(list(data_result$rows), data_name[[1]])
-  }
-
-  width <- body$width %||% NULL
-  height <- body$height %||% NULL
-  widget <- .agent_render_widget(
-    engine = engine,
-    spec = spec,
-    data = data,
-    data_name = data_name[[1]],
-    width = width,
-    height = height
-  )
-  captured <- .capture_visualization_output(widget)
-  if (is.null(captured$html)) {
-    stop("Visualization did not produce HTML output.")
-  }
-
-  if (isTRUE(body$persist)) {
-    if (!isTRUE(.sqlrooms_env$agent_allow_write)) {
-      return(.agent_json_response(
-        403L,
-        list(success = FALSE, error = "Agent write mode is disabled."),
-        origin = origin
-      ))
-    }
-    .agent_persist_visualization(
-      name = body$name %||% paste0("agent_", engine),
-      engine = engine,
-      spec = spec,
-      data_sql = data_sql %||% NA_character_,
-      data_name = data_name[[1]],
-      notes = body$notes %||% NA_character_
-    )
-  }
-
-  .agent_json_response(
-    200L,
-    list(
-      success = TRUE,
-      engine = engine,
-      name = body$name %||% NA_character_,
-      data_name = data_name[[1]],
-      html = captured$html
-    ),
-    origin = origin
-  )
-}
-
-#' @keywords internal
-#' @noRd
-.agent_execute_r <- function(body, origin = NULL) {
-  if (!isTRUE(.sqlrooms_env$agent_allow_r)) {
-    return(.agent_json_response(
-      403L,
-      list(success = FALSE, error = "Agent R execution is disabled."),
-      origin = origin
-    ))
-  }
-  code <- body$code %||% NULL
-  if (is.null(code) || !is.character(code) || !nzchar(code[[1]])) {
-    return(.agent_json_response(
-      400L,
-      list(success = FALSE, error = "Missing required 'code'."),
-      origin = origin
-    ))
-  }
-  raw_body <- charToRaw(jsonlite::toJSON(
-    list(code = code[[1]]),
-    auto_unbox = TRUE,
-    null = "null"
-  ))
-  input <- local({
-    used <- FALSE
-    list(read = function() {
-      if (used) return(raw(0))
-      used <<- TRUE
-      raw_body
-    })
-  })
-  .handle_r_execution(list(REQUEST_METHOD = "POST", rook.input = input))
-}
-
-#' @keywords internal
-#' @noRd
-.agent_render_widget <- function(engine,
-                                 spec,
-                                 data = NULL,
-                                 data_name = "agent_data",
-                                 width = NULL,
-                                 height = NULL) {
-  if (identical(engine, "deck_json")) engine <- "deckgl"
-
-  if (identical(engine, "deckgl")) {
-    if (!requireNamespace("rDeckgl", quietly = TRUE)) {
-      stop("Package 'rDeckgl' is required for deck.gl visualizations.")
-    }
-    return(rDeckgl::deckgl(
-      spec = spec,
-      specType = "json",
-      data = data,
-      width = width,
-      height = height
-    ))
-  }
-
-  if (identical(engine, "mosaic")) {
-    if (!requireNamespace("rMosaic", quietly = TRUE)) {
-      stop("Package 'rMosaic' is required for Mosaic visualizations.")
-    }
-    return(rMosaic::mosaic(
-      spec = spec,
-      specType = "json",
-      data = data,
-      backend = "wasm",
-      width = width,
-      height = height
-    ))
-  }
-
-  if (!requireNamespace("Mosaic.gl", quietly = TRUE)) {
-    stop("Package 'Mosaic.gl' is required for mosaic_gl visualizations.")
-  }
-  if (!is.null(data) && length(data) > 0L) {
-    spec$data <- spec$data %||% list()
-    if (is.null(spec$data[[data_name]])) {
-      spec$data[[data_name]] <- list(type = "table", df = data[[data_name]])
-    }
-  }
-  Mosaic.gl::mosaic_gl(spec = spec, width = width, height = height)
-}
-
-#' @keywords internal
-#' @noRd
-.agent_normalize_deck_json <- function(spec,
-                                       datasets = list(),
-                                       data_sql = NULL,
-                                       data_name = "agent_data") {
-  if (!is.character(data_name) || !length(data_name) || !nzchar(data_name[[1]])) {
-    data_name <- "agent_data"
-  }
-
-  if (is.list(datasets) && length(datasets) > 0L) {
-    if (length(datasets) != 1L) {
-      stop("'deck_json' currently supports exactly one dataset.")
-    }
-    dataset_names <- names(datasets)
-    if (is.null(dataset_names) || any(!nzchar(dataset_names))) {
-      stop("'deck_json' datasets must be named.")
-    }
-
-    sql_by_dataset <- lapply(datasets, function(dataset) {
-      sql <- dataset$sqlQuery %||% dataset$source$sqlQuery %||% NULL
-      if (is.null(sql) || !is.character(sql) || !nzchar(sql[[1]])) {
-        stop("'deck_json' datasets currently require 'sqlQuery'.")
-      }
-      sql[[1]]
-    })
-
-    spec$layers <- lapply(spec$layers %||% list(), function(layer) {
-      binding <- layer$`_sqlroomsBinding` %||% list()
-      dataset_name <- binding$dataset %||% dataset_names[[1]]
-      if (!dataset_name %in% dataset_names) {
-        stop("Layer references unknown deck_json dataset: ", dataset_name)
-      }
-      layer$data <- list(
-        type = "duckdb",
-        query = sprintf("SELECT * FROM %s", dataset_name)
-      )
-      layer$`_sqlroomsBinding` <- NULL
-      layer
-    })
-
-    first <- dataset_names[[1]]
-    return(list(
-      spec = spec,
-      data_sql = sql_by_dataset[[first]],
-      data_name = first
-    ))
-  }
-
-  inferred_sql <- data_sql
-  spec$layers <- lapply(spec$layers %||% list(), function(layer) {
-    layer_data <- layer$data %||% list()
-    layer_sql <- NULL
-    if (is.character(layer_data) && length(layer_data) && nzchar(layer_data[[1]])) {
-      layer_sql <- layer_data[[1]]
-    } else if (is.list(layer_data)) {
-      layer_sql <- layer_data$sql %||% layer_data$query %||% NULL
-    }
-    if (is.null(inferred_sql) &&
-        is.character(layer_sql) &&
-        length(layer_sql) &&
-        nzchar(layer_sql[[1]])) {
-      inferred_sql <<- layer_sql[[1]]
-    }
-    if (!is.null(layer_sql)) {
-      layer$data <- list(
-        type = "duckdb",
-        query = sprintf("SELECT * FROM %s", data_name[[1]])
-      )
-    }
-    for (field in c(
-      "getPosition",
-      "getSourcePosition",
-      "getTargetPosition",
-      "getRadius",
-      "getElevation",
-      "getText",
-      "getFillColor",
-      "getLineColor"
-    )) {
-      layer[[field]] <- .agent_normalize_deck_json_accessor(layer[[field]])
-    }
-    layer$`_sqlroomsBinding` <- NULL
-    layer
-  })
-
-  if (is.null(inferred_sql) ||
-      !is.character(inferred_sql) ||
-      !length(inferred_sql) ||
-      !nzchar(inferred_sql[[1]])) {
-    stop("'deck_json' requires either 'datasets', 'data_sql', or inline layer SQL.")
-  }
-
-  list(
-    spec = spec,
-    data_sql = inferred_sql[[1]],
-    data_name = data_name[[1]]
-  )
-}
-
-#' @keywords internal
-#' @noRd
-.agent_normalize_deck_json_accessor <- function(value) {
-  if (is.null(value)) {
-    return(value)
-  }
-
-  if (is.character(value)) {
-    if (length(value) == 1L) {
-      text <- trimws(value[[1]])
-      if (!nzchar(text) || grepl("^@@=", text) || grepl("^@@=\\[", text)) {
-        return(value[[1]])
-      }
-      return(paste0("@@=", text))
-    }
-    return(sprintf("@@=[%s]", paste(value, collapse = ", ")))
-  }
-
-  if (!is.list(value)) {
-    return(value)
-  }
-
-  if (all(vapply(value, is.numeric, logical(1))) && !length(names(value))) {
-    return(value)
-  }
-
-  accessor_type <- value$`@@type` %||% NULL
-  accessor_value <- value$value %||% NULL
-  sql_value <- value$sql %||% NULL
-  if (identical(accessor_type, "accessor")) {
-    if (is.character(accessor_value)) {
-      if (length(accessor_value) == 1L) {
-        return(paste0("@@=", trimws(accessor_value[[1]])))
-      }
-      return(sprintf("@@=[%s]", paste(accessor_value, collapse = ", ")))
-    }
-    if (is.list(accessor_value)) {
-      sql_value <- accessor_value$sql %||% accessor_value$query %||% sql_value
-    }
-  }
-
-  if (is.character(sql_value) && length(sql_value) && nzchar(sql_value[[1]])) {
-    return(paste0("@@=", trimws(sql_value[[1]])))
-  }
-
-  value
-}
-
-#' @keywords internal
-#' @noRd
-.agent_persist_visualization <- function(name,
-                                         engine,
-                                         spec,
-                                         data_sql,
-                                         data_name,
-                                         notes = NA_character_) {
-  .invalidate_agent_read_conn()
-  con <- .resolve_target_conn(NULL)
-  if (is.null(con) || !DBI::dbIsValid(con)) {
-    stop("No writable database connection available.")
-  }
-  DBI::dbExecute(con, "
-    CREATE TABLE IF NOT EXISTS dbvisuals_agent_visualizations (
-      id VARCHAR,
-      name VARCHAR,
-      engine VARCHAR,
-      spec_json VARCHAR,
-      data_sql VARCHAR,
-      data_name VARCHAR,
-      notes VARCHAR,
-      created_at TIMESTAMP
-    )
-  ")
-  row <- data.frame(
-    id = paste0(
-      "vis_",
-      format(Sys.time(), "%Y%m%d%H%M%S"),
-      "_",
-      paste(sample(c(letters, 0:9), 8L, replace = TRUE), collapse = "")
-    ),
-    name = as.character(name[[1]] %||% paste0("agent_", engine)),
-    engine = engine,
-    spec_json = as.character(jsonlite::toJSON(
-      spec,
-      auto_unbox = TRUE,
-      null = "null"
-    )),
-    data_sql = as.character(data_sql[[1]] %||% NA_character_),
-    data_name = data_name,
-    notes = as.character(notes[[1]] %||% NA_character_),
-    created_at = Sys.time()
-  )
-  DBI::dbAppendTable(con, "dbvisuals_agent_visualizations", row)
-  .invalidate_agent_read_conn()
-  invisible(TRUE)
-}
-
-#' @keywords internal
-#' @noRd
-.agent_bounded_query <- function(con, sql, limit = NULL) {
-  limit <- .agent_limit(limit)
-  wrapped <- sprintf(
-    "SELECT * FROM (%s) AS __dbvisuals_agent_query__ LIMIT %d",
-    sql,
-    limit + 1L
-  )
-  rows <- DBI::dbGetQuery(con, wrapped)
-  truncated <- nrow(rows) > limit
-  if (truncated) {
-    rows <- rows[seq_len(limit), , drop = FALSE]
-  }
-  list(rows = rows, truncated = truncated, limit = limit)
-}
-
-#' @keywords internal
-#' @noRd
-.get_agent_read_conn <- function() {
-  db_path <- .sqlrooms_env$db_path %||% NULL
-  if (
-    is.null(db_path) ||
-      !is.character(db_path) ||
-      length(db_path) != 1L ||
-      !nzchar(db_path) ||
-      !file.exists(db_path)
-  ) {
-    return(NULL)
-  }
-  db_path <- .norm_path(db_path)
-
-  cached <- .sqlrooms_env$agent_read_conn
-  cached_path <- .sqlrooms_env$agent_read_conn_db_path
-  if (
-    identical(cached_path, db_path) &&
-      inherits(cached, "DBIConnection") &&
-      isTRUE(tryCatch(DBI::dbIsValid(cached), error = function(e) FALSE))
-  ) {
-    return(cached)
-  }
-
-  .invalidate_agent_read_conn()
-  if (!requireNamespace("DBI", quietly = TRUE) ||
-      !requireNamespace("duckdb", quietly = TRUE)) {
-    return(NULL)
-  }
-
-  con <- tryCatch(
-    DBI::dbConnect(duckdb::duckdb(), dbdir = db_path, read_only = TRUE),
-    error = function(e) {
-      DBI::dbConnect(duckdb::duckdb(), dbdir = db_path)
-    }
-  )
-  for (sql in c(
-    "INSTALL spatial", "LOAD spatial",
-    "INSTALL nanoarrow FROM community", "LOAD nanoarrow",
-    "CALL register_geoarrow_extensions()"
-  )) {
-    try(DBI::dbExecute(con, sql), silent = TRUE)
-  }
-  .sqlrooms_env$agent_read_conn <- con
-  .sqlrooms_env$agent_read_conn_db_path <- db_path
-  con
-}
-
-#' @keywords internal
-#' @noRd
-.invalidate_agent_read_conn <- function() {
-  con <- .sqlrooms_env$agent_read_conn
-  if (
-    inherits(con, "DBIConnection") &&
-      isTRUE(tryCatch(DBI::dbIsValid(con), error = function(e) FALSE))
-  ) {
-    disconnected <- tryCatch({
-      DBI::dbDisconnect(con, shutdown = TRUE)
-      TRUE
-    }, error = function(e) FALSE)
-    if (!isTRUE(disconnected)) {
-      try(DBI::dbDisconnect(con), silent = TRUE)
-    }
-  }
-  .sqlrooms_env$agent_read_conn <- NULL
-  .sqlrooms_env$agent_read_conn_db_path <- NULL
-  invisible(TRUE)
-}
-
-#' @keywords internal
-#' @noRd
-.agent_request_body <- function(req) {
-  raw_body <- NULL
-  if (!is.null(req$rook.input)) {
-    raw_body <- req$rook.input$read()
-  } else if (!is.null(req$body)) {
-    raw_body <- req$body
-  }
-  if (is.null(raw_body) || length(raw_body) == 0L) {
-    return(list())
-  }
-  jsonlite::fromJSON(rawToChar(raw_body), simplifyVector = FALSE)
-}
-
-#' @keywords internal
-#' @noRd
-.agent_path <- function(path) {
-  path <- sub("^/api/agent/?", "", path)
-  path <- sub("^/agent/?", "", path)
-  sub("^/", "", path)
-}
-
-#' @keywords internal
-#' @noRd
-.agent_authorized <- function(req) {
-  token <- .sqlrooms_env$agent_token %||% NULL
-  if (is.null(token) || !nzchar(token)) return(FALSE)
-  auth <- req$HTTP_AUTHORIZATION %||% ""
-  identical(auth, paste("Bearer", token))
-}
-
-#' @keywords internal
-#' @noRd
-.agent_origin_allowed <- function(origin) {
-  if (is.null(origin) || !nzchar(origin)) return(TRUE)
-  origin <- tolower(origin[[1]])
-  if (startsWith(origin, "file://")) return(TRUE)
-  host <- sub("^https?://([^/:]+).*", "\\1", origin)
-  host %in% c("127.0.0.1", "localhost", "::1", "[::1]")
-}
-
-#' @keywords internal
-#' @noRd
-.agent_json_response <- function(status,
-                                 body,
-                                 origin = NULL,
-                                 headers = list()) {
-  list(
-    status = as.integer(status),
-    headers = c(.agent_cors_headers(origin), headers),
-    body = jsonlite::toJSON(
-      body,
-      auto_unbox = TRUE,
-      force = TRUE,
-      dataframe = "rows",
-      null = "null",
-      na = "null"
-    )
-  )
-}
-
-#' @keywords internal
-#' @noRd
-.agent_empty_response <- function(status, origin = NULL) {
-  list(
-    status = as.integer(status),
-    headers = .agent_cors_headers(origin),
-    body = ""
-  )
-}
-
-#' @keywords internal
-#' @noRd
-.agent_cors_headers <- function(origin = NULL) {
-  list(
-    "Content-Type" = "application/json",
-    "Access-Control-Allow-Origin" = origin %||% "*",
-    "Access-Control-Allow-Methods" = "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers" = "Content-Type, Authorization"
-  )
-}
-
-#' @keywords internal
-#' @noRd
-.agent_limit <- function(limit = NULL) {
-  max_rows <- .agent_max_rows()
-  out <- suppressWarnings(as.integer((limit %||% max_rows)[[1]]))
-  if (is.na(out) || out < 1L) out <- max_rows
-  min(out, max_rows)
-}
-
-#' @keywords internal
-#' @noRd
-.agent_max_rows <- function() {
-  out <- suppressWarnings(as.integer(.sqlrooms_env$agent_max_rows %||% 1000L))
-  if (is.na(out) || out < 1L) 1000L else out
-}
-
-#' @keywords internal
-#' @noRd
-.agent_simple_identifier <- function(x) {
-  is.character(x) &&
-    length(x) == 1L &&
-    grepl("^[A-Za-z_][A-Za-z0-9_]*$", x)
-}
-
-#' @keywords internal
-#' @noRd
-.agent_sql_string <- function(con, value) {
-  as.character(DBI::dbQuoteString(con, value))
-}
-
-#' @keywords internal
-#' @noRd
-.agent_quote_ident <- function(x) {
-  paste0('"', gsub('"', '""', x, fixed = TRUE), '"')
-}
-
-#' @keywords internal
-#' @noRd
-.agent_qualified_name <- function(schema, table, catalog = NULL) {
-  parts <- c(catalog, schema, table)
-  parts <- parts[!is.na(parts) & nzchar(parts)]
-  paste(vapply(parts, .agent_quote_ident, character(1)), collapse = ".")
 }
 
 
@@ -2310,18 +944,6 @@ stop_sqlrooms <- function(dashboard = NULL) {
 #' @keywords internal
 #' @noRd
 .handle_sqlrooms_session <- function(req) {
-  method <- toupper(req$REQUEST_METHOD %||% "GET")
-
-  cors_headers <- list(
-    "Access-Control-Allow-Origin" = "*",
-    "Access-Control-Allow-Methods" = "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers" = "Content-Type, Authorization"
-  )
-
-  if (identical(method, "OPTIONS")) {
-    return(list(status = 204L, headers = cors_headers, body = ""))
-  }
-
   info <- list(
     success = TRUE,
     db_path = .sqlrooms_env$db_path %||% NA_character_,
@@ -2332,7 +954,7 @@ stop_sqlrooms <- function(dashboard = NULL) {
 
   return(list(
     status = 200L,
-    headers = c(cors_headers, "Content-Type" = "application/json"),
+    headers = list("Content-Type" = "application/json"),
     body = jsonlite::toJSON(info, auto_unbox = TRUE, force = TRUE)
   ))
 }
@@ -2341,42 +963,23 @@ stop_sqlrooms <- function(dashboard = NULL) {
 #' Handle SQL Rooms database download
 #'
 #' Handles HTTP requests to download the current DuckDB database file.
-#' Supports CORS preflight requests and streams the database file.
+#' Authentication, CORS and methods are checked by the router.
 #'
 #' @param req List. HTTP request object with REQUEST_METHOD and other fields
 #'
 #' @return List with HTTP response:
-#'   - For OPTIONS: 204 status with CORS headers
 #'   - For GET with db_path: 200 status with database file stream
-#'   - For GET without db_path: 404 status with error message
-#'   - For other methods: 405 status (Method Not Allowed)
+#'   - For GET without db_path: 200 status with available = FALSE
 #'
 #' @keywords internal
 #' @noRd
 .handle_sqlrooms_database <- function(req) {
-  method <- toupper(req$REQUEST_METHOD %||% "GET")
-
-  base_headers <- list(
-    "Access-Control-Allow-Origin" = "*",
-    "Access-Control-Allow-Methods" = "GET, OPTIONS",
-    "Access-Control-Allow-Headers" = "Content-Type, Authorization",
-    "Access-Control-Expose-Headers" = "Content-Disposition, Content-Length"
-  )
-
   respond <- function(status, headers = NULL, body = "") {
     list(
       status = status,
-      headers = c(base_headers, headers %||% list()),
+      headers = headers %||% list(),
       body = body
     )
-  }
-
-  add_headers <- function(extra = list()) {
-    c(base_headers, extra)
-  }
-
-  if (identical(method, "OPTIONS")) {
-    return(respond(204L))
   }
 
   db_path <- .sqlrooms_env$db_path
@@ -2576,11 +1179,11 @@ sqlrooms_register <- function(name, x, project = NULL,
 #' @section Stored Variables:
 #' \describe{
 #'   \item{db_path}{Character. Path to the current DuckDB database file}
-#'   \item{r_server_port}{Integer. Port number of the R execution server}
+#'   \item{r_server_port}{Integer. Port number of the R database server}
 #'   \item{r_server_process}{r_process. Background R process running the server}
 #'   \item{frontend_controller}{List. Frontend server controller object}
 #'   \item{launched_at}{POSIXct. Timestamp when SQL Rooms was launched}
-#'   \item{sqlrooms_exported_tables}{List. Data frames exported from R code execution}
+#'   \item{sqlrooms_exported_tables}{List. Data frames exported from R}
 #' }
 #'
 #' @keywords internal
@@ -2603,58 +1206,4 @@ sqlrooms_register <- function(name, x, project = NULL,
 #' @noRd
 `%||%` <- function(x, y) {
   if (is.null(x)) y else x
-}
-
-
-#' Manual Base64 Encoding (Fallback)
-#'
-#' Provides a pure R implementation of base64 encoding for files.
-#' Used as a fallback when the base64enc package is not available.
-#' Implements the standard Base64 encoding scheme (RFC 4648).
-#'
-#' @param file Character. Path to the file to encode
-#'
-#' @return Character string containing the base64-encoded representation of the file
-#'
-#' @keywords internal
-#' @noRd
-base64encode_manual <- function(file) {
-  # Read binary file
-  bytes <- readBin(file, "raw", file.info(file)$size)
-
-  # Base64 encoding table
-  base64_chars <- c(LETTERS, letters, 0:9, "+", "/")
-
-  # Convert to base64
-  result <- character(0)
-  i <- 1
-  while (i <= length(bytes)) {
-    # Get 3 bytes (24 bits)
-    b1 <- as.integer(bytes[i])
-    b2 <- if (i + 1 <= length(bytes)) as.integer(bytes[i + 1]) else 0
-    b3 <- if (i + 2 <= length(bytes)) as.integer(bytes[i + 2]) else 0
-
-    # Convert to 4 base64 characters
-    c1 <- bitwShiftR(b1, 2) + 1
-    c2 <- bitwOr(bitwShiftL(bitwAnd(b1, 3), 4), bitwShiftR(b2, 4)) + 1
-    c3 <- bitwOr(bitwShiftL(bitwAnd(b2, 15), 2), bitwShiftR(b3, 6)) + 1
-    c4 <- bitwAnd(b3, 63) + 1
-
-    result <- c(result, base64_chars[c1], base64_chars[c2])
-    if (i + 1 <= length(bytes)) {
-      result <- c(result, base64_chars[c3])
-    }
-    if (i + 2 <= length(bytes)) {
-      result <- c(result, base64_chars[c4])
-    }
-
-    i <- i + 3
-  }
-
-  # Add padding
-  while (length(result) %% 4 != 0) {
-    result <- c(result, "=")
-  }
-
-  paste(result, collapse = "")
 }

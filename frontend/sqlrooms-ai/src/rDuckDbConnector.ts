@@ -22,13 +22,20 @@ export function getRServerUrlFromLocation(): string | null {
 
 export function createRDuckDbConnectorFromLocation(): DuckDbConnector | null {
   const serverUrl = getRServerUrlFromLocation();
-  return serverUrl ? createRDuckDbConnector({serverUrl}) : null;
+  if (!serverUrl) return null;
+
+  const sessionToken = new URLSearchParams(window.location.hash.slice(1)).get(
+    'r_token',
+  );
+  return createRDuckDbConnector({serverUrl, sessionToken});
 }
 
 export function createRDuckDbConnector({
   serverUrl,
+  sessionToken,
 }: {
   serverUrl: string;
+  sessionToken?: string | null;
 }): DuckDbConnector {
   const queryUrl = new URL('/api/arrow-query', ensureTrailingSlash(serverUrl));
 
@@ -44,6 +51,9 @@ export function createRDuckDbConnector({
             headers: {
               Accept: `${ARROW_STREAM_MIME}, ${ARROW_FILE_MIME}, ${OCTET_STREAM_MIME}`,
               'Content-Type': 'application/json',
+              ...(sessionToken
+                ? {Authorization: `Bearer ${sessionToken}`}
+                : {}),
             },
             body: JSON.stringify({sql: query, geoarrow: true}),
             signal,

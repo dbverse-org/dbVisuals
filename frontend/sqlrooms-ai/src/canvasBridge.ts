@@ -820,7 +820,7 @@ export function quoteIdentifier(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
 }
 
-function quoteString(value: string): string {
+export function quoteString(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
