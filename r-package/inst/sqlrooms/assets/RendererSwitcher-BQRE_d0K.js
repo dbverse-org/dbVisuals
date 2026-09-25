@@ -1,0 +1,1 @@
+import{o as e,r as t,t as n,ut as r}from"./useGetPanel-DlPvG5q6.js";var i=r(),a=({defaultComponent:r})=>{let a=t(),o=n(a.node),s=o?.component;if(s){let t=e(a.node);return t.panelId?(0,i.jsx)(s,{panelInfo:o,...t}):r}return r};export{a as t};

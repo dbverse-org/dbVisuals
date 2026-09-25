@@ -15,7 +15,7 @@ import { decodeBase64, decodeUint32Base64 } from './util.js';
 import { mountDeckglInto } from './panels/deckgl.js';
 
 export async function mountInstance({ container, payload, shiny }) {
-  console.info('[mosaic_gl] bundle 0.2.8: file transport + binary scatter');
+  console.info('[mosaic_gl] file transport + binary scatter');
   container.classList.add('mosaic_gl-root');
   container.innerHTML = '';
   const status = banner(container, 'initialising DuckDB-WASM…');
