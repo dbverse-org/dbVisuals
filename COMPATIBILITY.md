@@ -31,7 +31,7 @@ Use `npm ci && npm run build` in each source directory:
 - `frontend/sqlrooms-ai`: Canvas; `npm run build:r-package` updates its R assets.
 - `r-package/inst/viewer-src`: the separate combined R widget.
 
-Both builds passed in WSL2 with Node 26.3.1/npm 11.16.0. The viewer lockfile repair
-adds pinned platform packages without upgrading renderers; a clean Mac build
-remains unverified. Historical measurements stay pinned to their measured
+Both builds passed in WSL2 with Node 26.3.1/npm 11.16.0 and on macOS with Node
+22.19.0/npm 10.9.3. The viewer lockfile repair adds pinned platform packages
+without upgrading renderers. Historical measurements stay pinned to their measured
 source and bundles, not these later builds.

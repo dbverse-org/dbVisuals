@@ -1,3 +1,13 @@
+# dbVisuals 0.1.0.9004
+
+* `mosaic_gl()` raises an error instead of flattening MultiPolygons or
+  dropping holes in its polygon fallbacks.
+* `launchBrowser()` prints the session link for a file-backed database, so
+  `browser = FALSE` sessions can open it, and quotes database paths that
+  contain an apostrophe.
+* Canvas keeps native and standalone workspaces under separate saved states.
+* Viewer bundle 0.2.11.
+
 # dbVisuals 0.1.0.9003
 
 * Never disconnect the caller's DuckDB connection. `mosaic_gl()` never opens
