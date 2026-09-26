@@ -156,7 +156,7 @@ launchBrowser <- function(
   }
 
   message("\nSQL Rooms is running!")
-  message(sprintf("  Frontend: %s", frontend_base_url))
+  message(sprintf("  Frontend: %s", frontend_display_url))
   if (!is.null(db_path)) {
     message(sprintf("  R Server: http://%s:%d", host, port))
     message(sprintf("  Database: %s", db_path))
@@ -576,7 +576,7 @@ stop_sqlrooms <- function(dashboard = NULL) {
 
   if (!alias %in% cached$aliases) {
     DBI::dbExecute(cached$con, sprintf(
-      "ATTACH '%s' AS \"%s\" (READ_ONLY)", db_path, alias
+      "ATTACH %s AS \"%s\" (READ_ONLY)", DBI::dbQuoteString(cached$con, db_path), alias
     ))
     cached$aliases <- c(cached$aliases, alias)
     .sqlrooms_env$arrow_conn <- cached
