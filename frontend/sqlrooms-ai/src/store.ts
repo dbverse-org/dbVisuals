@@ -111,7 +111,10 @@ const canvasPanelDefinitions = Object.fromEntries(
 export const {roomStore, useRoomStore} = createRoomStore<RoomState>(
   persistSliceConfigs<RoomState>(
     {
-      name: 'dbvisuals-canvas-state-storage',
+      // Standalone state names demo WASM sources that the R connector cannot load.
+      name: rDuckDbConnector
+        ? 'dbvisuals-canvas-native-state-storage'
+        : 'dbvisuals-canvas-state-storage',
       sliceConfigSchemas: {
         room: BaseRoomConfig,
         layout: LayoutConfig,

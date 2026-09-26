@@ -281,10 +281,13 @@ try {
     assert.equal(await coloredPixels('selection'), 0);
     await map.getByRole('button', {name: 'Select', exact: true}).click();
     result.mapSelection.pointSelected = pointSelected.length;
-    const panels = await page.evaluate(() => {
-      const saved = JSON.parse(localStorage.getItem('dbvisuals-canvas-state-storage'));
+    const storageKey = new URL(url).searchParams.has('r_port')
+      ? 'dbvisuals-canvas-native-state-storage'
+      : 'dbvisuals-canvas-state-storage';
+    const panels = await page.evaluate((key) => {
+      const saved = JSON.parse(localStorage.getItem(key));
       return saved.state.canvas.panels;
-    });
+    }, storageKey);
     writeFileSync(resolve(output, 'canvas-input.json'), JSON.stringify({
       fixtureSha256: result.fixtureSha256, histogram: panels.A1, spatial: panels.B1,
     }, null, 2) + '\n');
