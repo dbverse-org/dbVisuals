@@ -30,22 +30,26 @@ install.packages(c("DBI", "duckdb", "rDeckgl", "rMosaic"))
 dbVisuals::install_dbvisuals_deps()
 ```
 
-`dbVisuals` itself is not on CRAN yet:
+`dbVisuals` itself is not on CRAN yet. The historical R benchmark source is
+`dbverse-org/dbVisuals2@paper-repro`, pinned at revision `623041f`; it is not the
+Canvas-only submission snapshot. For this private review, install the current
+local checkout instead of the historical or default remote branch:
 
 ```{r}
-remotes::install_github("dbverse-org/dbVisuals2@paper-repro", subdir = "r-package")
+remotes::install_local("r-package")
 ```
 
 ## Entry point 1 — the SQLRooms browser workspace
 
 `launchBrowser()` starts a local server plus the packaged front end and opens a
-browser. Point it at a DuckDB file, or omit `db_path` for an empty in-memory
-database you can populate from the UI.
+browser. Point it at a closed DuckDB file for authenticated native queries, or
+omit `db_path` for standalone DuckDB-WASM with the bundled demonstration tables.
+Files imported in standalone mode stay in the browser, not in the R session.
 
 ```{r}
 library(dbVisuals)
 
-# empty in-memory database
+# standalone browser workspace
 launchBrowser()
 
 # an existing DuckDB / GiottoDB file
@@ -54,34 +58,26 @@ launchBrowser(db_path = "WTA_Preview_FFPE_Breast_Cancer_xenium.duckdb")
 stop_sqlrooms()
 ```
 
-The server always runs in a background process, so the R session stays usable
-either way; `daemon` is kept only for backwards compatibility. Ports default to
+The frontend and, when needed, the native API run in background processes, so
+the R session stays usable; `daemon` is retained for compatibility. Ports default to
 3001 (server) and 5173 (front end). Only one workspace runs at a time — a second
 `launchBrowser()` replaces the first even on different ports — so use two R
 sessions if you need two databases side by side.
 
-To push data from R into the running workspace, open your own connection to the
-same file you launched. `con` below is that connection; without it
-`dplyr::tbl()` has nothing to read and fails with "Invalid connection".
+Prepare and close a native database before launching. To change it from R,
+stop the workspace, modify the file, close the writer and relaunch. DuckDB's
+cross-process file locks do not guarantee concurrent live writes.
 
 ```{r}
 db <- file.path(tempdir(), "workspace.duckdb")
 con <- DBI::dbConnect(duckdb::duckdb(), db)
 DBI::dbWriteTable(con, "gdb_cell_metadata",
                   data.frame(x = rnorm(200), y = rnorm(200)))
+DBI::dbDisconnect(con, shutdown = TRUE)
 
 launchBrowser(db_path = db, browser = FALSE)
 
-# a data frame -> a table in the project database
-sqlrooms_export_table("cars", mtcars)
-
-# a lazy dbplyr pipeline -> a view, without pulling it into R
-dplyr::tbl(con, "gdb_cell_metadata") |>
-  dplyr::filter(x > 0) |>
-  sqlrooms_register("cells_pos", x = _)
-
 stop_sqlrooms()
-DBI::dbDisconnect(con, shutdown = TRUE)
 ```
 
 ## Entry point 2 — R-side linked views with `mosaic_gl()`

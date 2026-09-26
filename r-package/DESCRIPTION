@@ -12,7 +12,7 @@ Authors@R: c(
 Author: Timur Rizvanov [aut, cre]
 Maintainer: Timur Rizvanov <timurr@bu.edu>
 Description: Provides a browser-based SQL Rooms interface for interactive exploration
-    of GiottoDB spatial databases. SQL Rooms enables SQL queries, R code execution,
+    of GiottoDB spatial databases. SQL Rooms enables SQL queries
     and interactive visualizations using deck.gl and Mosaic. Also provides a
     spec-driven htmlwidget that bundles Mosaic and deck.gl in a single browser
     scope, sharing one DuckDB-WASM coordinator and one selection so Mosaic views
@@ -31,6 +31,7 @@ Imports:
     callr (>= 3.7.0),
     httpuv,
     jsonlite (>= 1.8.0),
+    openssl,
     base64enc,
     htmlwidgets (>= 1.5.4),
     htmltools (>= 0.5.0),

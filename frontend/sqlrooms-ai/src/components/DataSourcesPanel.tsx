@@ -7,6 +7,7 @@ import {isWasmDuckDbConnector, type DuckDbConnector} from '@sqlrooms/duckdb';
 import {toast} from '@sqlrooms/ui';
 import {tableFromIPC} from 'apache-arrow';
 import type {FC} from 'react';
+import {quoteIdentifier, quoteString} from '../canvasBridge';
 
 type DroppedFileResult = {tableName: string; kind: 'table' | 'database'};
 
@@ -38,7 +39,9 @@ async function loadDroppedFile(
     // Allow re-dropping the same file name without a "already registered" error.
     await db.dropFile(file.name).catch(() => undefined);
     await db.registerFileBuffer(file.name, buffer);
-    await connector.execute(`ATTACH '${file.name}' AS "${alias}" (READ_ONLY)`);
+    await connector.execute(
+      `ATTACH ${quoteString(file.name)} AS ${quoteIdentifier(alias)} (READ_ONLY)`,
+    );
     return {tableName: alias, kind: 'database'};
   }
 
@@ -61,43 +64,50 @@ export const DataSourcesPanel: FC = () => {
   );
   return (
     <RoomPanel>
-      <FileDropzone
-        className="h-50 p-5"
-        acceptedFormats={{
-          'text/csv': ['.csv'],
-          'text/tsv': ['.tsv'],
-          'text/parquet': ['.parquet'],
-          'text/json': ['.json'],
-          'application/vnd.apache.arrow.file': ['.arrow'],
-          'application/octet-stream': ['.duckdb', '.ddb'],
-        }}
-        onDrop={async (files) => {
-          for (const file of files) {
-            try {
-              const {tableName, kind} = await loadDroppedFile(connector, file);
-              toast.success(
-                kind === 'database' ? 'Database attached' : 'Table created',
-                {
-                  description:
-                    kind === 'database'
-                      ? `${file.name} attached read-only as ${tableName}`
-                      : `File ${file.name} loaded as ${tableName}`,
-                },
-              );
-            } catch (error) {
-              toast.error('Error', {
-                description: `Error loading file ${file.name}: ${error}`,
-              });
+      {isWasmDuckDbConnector(connector) ? (
+        <FileDropzone
+          className="h-50 p-5"
+          acceptedFormats={{
+            'text/csv': ['.csv'],
+            'text/tsv': ['.tsv'],
+            'text/parquet': ['.parquet'],
+            'text/json': ['.json'],
+            'application/vnd.apache.arrow.file': ['.arrow'],
+            'application/octet-stream': ['.duckdb', '.ddb'],
+          }}
+          onDrop={async (files) => {
+            for (const file of files) {
+              try {
+                const {tableName, kind} = await loadDroppedFile(connector, file);
+                toast.success(
+                  kind === 'database' ? 'Database attached' : 'Table created',
+                  {
+                    description:
+                      kind === 'database'
+                        ? `${file.name} attached read-only as ${tableName}`
+                        : `File ${file.name} loaded as ${tableName}`,
+                  },
+                );
+              } catch (error) {
+                toast.error('Error', {
+                  description: `Error loading file ${file.name}: ${error}`,
+                });
+              }
             }
-          }
-          await refreshTableSchemas();
-        }}
-      >
-        <div className="text-muted-foreground text-xs">
-          Drop CSV, TSV, Parquet, JSON, Arrow, or a DuckDB database file. Files
-          you add stay local to your browser.
-        </div>
-      </FileDropzone>
+            await refreshTableSchemas();
+          }}
+        >
+          <div className="text-muted-foreground text-xs">
+            Drop CSV, TSV, Parquet, JSON, Arrow, or a DuckDB database file. Files
+            you add stay local to your browser.
+          </div>
+        </FileDropzone>
+      ) : (
+        <p className="text-muted-foreground p-4 text-xs">
+          Connected to native DuckDB. Add files to that database before launching;
+          browser file import is available in standalone mode.
+        </p>
+      )}
       <SchemaExplorer>
         <SchemaExplorer.Header>
           <SchemaExplorer.RefreshButton />

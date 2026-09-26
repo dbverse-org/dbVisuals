@@ -410,15 +410,14 @@ function arrowToRows(tbl) {
     for (const f of gjCols) {
       const v = row[f];
       if (typeof v !== 'string') continue;
-      try {
-        const gj = JSON.parse(v);
-        // PolygonLayer expects [[x,y],...] for a simple ring,
-        // [[ring], [hole1], ...] for polygon-with-holes,
-        // [[[ring], [hole1]], ...] for multipolygon (one entry per polygon).
-        if (gj.type === 'Polygon')      row[f] = gj.coordinates;
-        else if (gj.type === 'MultiPolygon') row[f] = gj.coordinates[0];
-        else                              row[f] = null;
-      } catch (_) { row[f] = null; }
+      let gj;
+      try { gj = JSON.parse(v); }
+      catch (_) { row[f] = null; continue; }
+      // PolygonLayer accepts rings (including holes), but not MultiPolygon nesting.
+      if (gj.type === 'MultiPolygon') {
+        throw new Error('[mosaic_gl] MultiPolygon is unsupported by the row polygon fallback; refusing to discard parts.');
+      }
+      row[f] = gj.type === 'Polygon' ? gj.coordinates : null;
     }
   }
   return out;
@@ -542,6 +541,9 @@ function wkbToPolygonVector(binaryVector) {
   let totalRings = 0, totalPoints = 0;
   for (let i = 0; i < (binaryVector.length ?? 0); i++) {
     const parsed = parseWKBPolygonLike(binaryVectorValueAt(binaryVector, i));
+    if (parsed && parsed.length > 1) {
+      throw new Error('[mosaic_gl] MultiPolygon cannot be converted to a Polygon vector without losing part boundaries.');
+    }
     geometries.push(parsed);
     if (!parsed) continue;
     for (const polygon of parsed) {
@@ -566,9 +568,6 @@ function wkbToPolygonVector(binaryVector) {
         }
       }
     }
-    // We expose a Polygon vector. MultiPolygons are flattened into one
-    // multi-ring polygon for now, which preserves the visible cell footprint
-    // for GiottoDB cell polygons and keeps the fast GeoArrow layer path.
     rowOffsets[i + 1] = ringCursor;
   }
 
@@ -599,6 +598,13 @@ function wkbToPolygonVector(binaryVector) {
   return arrow.makeVector(polygonData);
 }
 
+function simplePolygonRings(polygons) {
+  if (polygons && (polygons.length > 1 || polygons[0]?.length > 1)) {
+    throw new Error('[mosaic_gl] The binary polygon fallback supports only simple polygons without holes; refusing to flatten multipart or holed geometry.');
+  }
+  return polygons?.[0] ?? [];
+}
+
 function wkbToSolidPolygonBinary(binaryVector) {
   const geometries = [];
   let totalPoints = 0;
@@ -606,10 +612,7 @@ function wkbToSolidPolygonBinary(binaryVector) {
   for (let i = 0; i < (binaryVector.length ?? 0); i++) {
     const parsed = parseWKBPolygonLike(binaryVectorValueAt(binaryVector, i));
     if (parsed) parsedCount++;
-    // GiottoDB cells are simple polygons. If a feature is MultiPolygon, flatten
-    // all rings into one SolidPolygonLayer feature so property indexing remains
-    // one-to-one with the Arrow table row.
-    const rings = parsed ? parsed.flat() : [];
+    const rings = simplePolygonRings(parsed);
     geometries.push(rings);
     for (const ring of rings) totalPoints += ring.length;
   }
@@ -642,7 +645,7 @@ function wkbEnvelopeToSolidPolygonBinary(wkb) {
   for (let i = 0; i < n; i++) {
     const parsed = parseWKBPolygonLike(wkbValueAt(wkb, i));
     if (parsed) parsedCount++;
-    const rings = parsed ? parsed.flat() : [];
+    const rings = simplePolygonRings(parsed);
     geometries.push(rings);
     for (const ring of rings) totalPoints += ring.length;
   }
@@ -730,12 +733,20 @@ function arrowPolygonToSolidPolygonBinary(table, geomColumnName) {
     const geomCol = table.getChild(geomColumnName);
     if (!geomCol || !geomCol.data || geomCol.data.length === 0) return null;
 
-    // The common DuckDB/nanoarrow output is one chunk:
+    // This fallback supports one unsliced batch of simple polygons:
     // Polygon = List<Ring>, Ring = List<Point>, Point = FixedSizeList<2,double>
-    // or Struct<x,y>. This mirrors the working rDeckgl binary fallback.
+    // or Struct<x,y>.
     const chunk = geomCol.data[0];
     if (!chunk || !chunk.valueOffsets) return null;
-    const polyOffsets = chunk.valueOffsets;
+    if (geomCol.data.length !== 1 || chunk.offset) {
+      throw new Error('The native polygon fallback requires one unsliced Arrow batch.');
+    }
+    const polyOffsets = chunk.valueOffsets.subarray(0, geomCol.length + 1);
+    for (let i = 1; i < polyOffsets.length; i++) {
+      if (polyOffsets[i] - polyOffsets[i - 1] > 1) {
+        throw new Error('The native polygon fallback does not support polygon holes.');
+      }
+    }
 
     const rings = geomCol.getChildAt(0);
     if (!rings || !rings.data || rings.data.length === 0) return null;
@@ -770,8 +781,9 @@ function arrowPolygonToSolidPolygonBinary(table, geomColumnName) {
       startIndices[i] = ringOffsets[polyOffsets[i]];
     }
 
-    const positions = new Float32Array(coordX.length * 2);
-    for (let i = 0; i < coordX.length; i++) {
+    const pointCount = startIndices[startIndices.length - 1];
+    const positions = new Float32Array(pointCount * 2);
+    for (let i = 0; i < pointCount; i++) {
       positions[i * 2] = Number(coordX[i]);
       positions[i * 2 + 1] = Number(coordY[i]);
     }
@@ -782,8 +794,7 @@ function arrowPolygonToSolidPolygonBinary(table, geomColumnName) {
       positions,
     };
   } catch (e) {
-    console.warn('[mosaic_gl] native GeoArrow polygon → binary conversion failed', e);
-    return null;
+    throw new Error('[mosaic_gl] Native polygon conversion failed: ' + e.message, { cause: e });
   }
 }
 

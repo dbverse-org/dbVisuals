@@ -17,14 +17,14 @@ knitr::opts_chunk$set(
 
 # Introduction
 
-dbVisuals is a minimal [REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop) and visualization UI built on [SQLRooms](https://sqlrooms.org/) for interactive 
-for interactive exploration of [dbverse](https://github.com/dbverse-org) objects. 
+dbVisuals is a Canvas visualization workspace built on [SQLRooms](https://sqlrooms.org/)
+for interactive exploration of [dbverse](https://github.com/dbverse-org) data.
+This submission branch excludes AI and arbitrary R-code execution.
 
 ## dbVisuals features
 
 - **Dropzone** - Drag and drop files directly into the UI for exploration
 - **SQL Editor** - Run queries on database-backed objects
-- **R Console** - Execute R code interactively
 - **Hardware-accelerated Visualizations** - High-performance WebGL spatial rendering using [deck.gl](https://deck.gl/)
 - **Interactive Linked Views** - Create interactive linked visualizations using [Mosaic specs](https://github.com/uwdata/mosaic)
 - **Live Connection** - Call the UI from R
@@ -33,8 +33,8 @@ for interactive exploration of [dbverse](https://github.com/dbverse-org) objects
 ## Installation
 
 ```{r}
-# Install from GitHub
-devtools::install_github("dbverse-org/dbVisuals2", subdir = "r-package")
+# Install the reviewed local checkout; this repository is still private.
+remotes::install_local("r-package")
 
 # Optional: Install all recommended dependencies
 library(dbVisuals)
@@ -50,12 +50,14 @@ dbVisuals automatically provides access to:
 
 ### Launch with In-Memory Database
 
-The simplest way to start is with an empty in-memory database:
+Without a native database file, the workspace uses browser-local DuckDB-WASM
+and the bundled demonstration tables. Imported files stay in the browser and
+are not synchronized back into the R session.
 
 ```{r}
 library(dbVisuals)
 
-# Launch dbVisuals with an empty database
+# Launch the standalone browser workspace
 dashboard <- launchBrowser()
 ```
 
@@ -109,35 +111,13 @@ SELECT poly_ID, ST_Area(geom) as area
 FROM gdb_poly_cell;
 ```
 
-### 2. R Code Execution
-
-Execute R code directly in dbVisuals cells:
-
-```{r}
-# Inside dbVisuals R cell:
-
-# Load packages
-library(GiottoDB)
-library(duckdb)
-
-# Query and analyze. GiottoDB stores expression as an ijx triplet table
-# (i = feature, j = cell, x = value), so aggregate rather than treating it
-# as a dense matrix.
-con <- dbConnect(duckdb(), "my_spatial_data.duckdb")
-result_df <- DBI::dbGetQuery(con, "
-  SELECT j AS cell, SUM(x) AS total_counts, COUNT(*) AS n_features
-  FROM gdb_cell_rna_raw
-  GROUP BY j
-  ORDER BY total_counts DESC")
-head(result_df)
-
-# Export results back to dbVisuals
-sqlrooms_export_table("analysis_results", result_df)
-```
-
-### 3. Interactive Visualizations
+### 2. Interactive Visualizations
 
 Create deck.gl and Mosaic visualizations using the built-in tools in dbVisuals.
+Use Add Chart for Spatial Map and Table as well as ordinary Mosaic charts.
+For native R-backed data, prepare the database and close its writer connection
+before launching. Stop the workspace before modifying the file from R, then
+close the connection and relaunch. Concurrent cross-process writes are not promised.
 
 ## Advanced Configuration
 
