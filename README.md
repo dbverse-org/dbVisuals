@@ -1,25 +1,14 @@
 # dbVisuals
 
-dbVisuals is a local AI-assisted visualization workspace and R package in the [dbverse](https://github.com/dbverse-org) ecosystem.
+dbVisuals is a local visualization workspace and R package in the [dbverse](https://github.com/dbverse-org) ecosystem.
 
-It is built on [SQLRooms](https://sqlrooms.org/), [deck.gl](https://deck.gl/), and [Mosaic](https://idl.uw.edu/mosaic/) for interactive exploration of data residing in [DuckDB](https://duckdb.org/) and other tabular data sources (e.g. parquet, csv, etc.) with the support of AI-assisted chart and dashboard generation.
-
-## AI-Supported Visualizations
-dbVisuals leverages AI to assist users in generating visualizations and dashboards. By providing natural language prompts, users can quickly create insightful charts and interactive dashboards without needing extensive coding knowledge. In order to use these features, an API key for the following LLM providers must be provided.
-
-More information on acquiring API keys can be found at the following links:
-- [OpenAI](https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key)
-- [Anthropic](https://platform.claude.com/settings/keys)
-- [DeepSeek](https://platform.deepseek.com/api_keys)
-- [Google Gemini](https://ai.google.dev/gemini-api/docs/api-key)
-- ... and more.
+It is built on [SQLRooms](https://sqlrooms.org/), [deck.gl](https://deck.gl/), and [Mosaic](https://idl.uw.edu/mosaic/) for interactive exploration of data residing in [DuckDB](https://duckdb.org/) and other tabular data sources (e.g. parquet, csv, etc.).
 
 ## Features
 
 - Launch a local SQLRooms-style browser workspace from R.
 - Explore DuckDB, CSV, Parquet, and other tabular data sources.
 - Build interactive visualizations with Mosaic and deck.gl.
-- Experiment with AI-assisted chart and dashboard generation.
 - Connect with GiottoDB, rMosaic, rDeckgl, and mosaic.gl.
 
 ## Getting Started
@@ -33,8 +22,8 @@ Use this path when you want to work on the browser app directly without
 installing the R package.
 
 ```bash
-git clone https://github.com/dbverse-org/dbVisuals2.git
-cd dbVisuals2/frontend/sqlrooms-ai
+git clone https://github.com/dbverse-org/dbVisuals.git
+cd dbVisuals/frontend/sqlrooms-ai
 npm install
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
@@ -64,7 +53,7 @@ Install the R package from GitHub:
 
 ```r
 install.packages("remotes")
-remotes::install_github("dbverse-org/dbVisuals2", subdir = "r-package")
+remotes::install_github("dbverse-org/dbVisuals", subdir = "r-package")
 ```
 
 Load dbVisuals and install the optional visualization dependencies:
