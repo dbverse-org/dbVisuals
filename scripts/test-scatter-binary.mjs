@@ -10,6 +10,8 @@ import {
   colorAccessorFields, clampByte, fillColumn, interleavePositions, colorRowsFromAccessor,
   radiusBufferFromTable, alphaMaskByKey, scatterBaseBinaryFromTable, applyScatterFilter,
   scatterBinaryFromTable, tableLength,
+  alphaMaskByRow, applyScatterRowMask, rowMaskSql, rowMaskFromColumn,
+  alignmentSampleSql, alignmentPositions, alignmentMatches,
 } from '../r-package/inst/viewer-src/src/scatter-binary.js';
 
 // Three record batches of 4, 3 and 5 rows so every buffer crosses two
@@ -178,6 +180,72 @@ test('alpha mask zeroes exactly the rows outside the filtered key set', () => {
   const nullBase = colorRowsFromAccessor(nullKeys, '@@=[r, g, b]', 3, 255);
   const nullMasked = alphaMaskByKey(nullBase, nullKeys, 'cell_ID', new Set(['c']));
   assert.deepEqual([nullMasked[3], nullMasked[7], nullMasked[11]], [0, 255, 255]);
+});
+
+test('row mask zeroes exactly the unselected rows without touching the cached colours', () => {
+  const table = threeBatchTable();
+  const base = colorRowsFromAccessor(table, '@@=[r, g, b]', N, 255);
+  const mask = new Uint8Array(N);
+  for (const i of [1, 5, 11]) mask[i] = 1;
+  const masked = alphaMaskByRow(base, mask);
+  assert.notEqual(masked, base, 'mask must not mutate the cached base colours');
+  for (let i = 0; i < N; i++) {
+    assert.equal(masked[i * 4], base[i * 4]);
+    assert.equal(masked[i * 4 + 3], mask[i] ? 255 : 0);
+  }
+  assert.equal(alphaMaskByRow(base, null), base);
+  assert.throws(() => alphaMaskByRow(base, new Uint8Array(N - 1)), /row mask has 11 entries for 12 rows/);
+  // The row mask and the key set select the same rows when they describe the same selection.
+  const byKey = alphaMaskByKey(base, table, 'cell_ID', new Set(['c1', 'c5', 'c11']));
+  assert.deepEqual(Array.from(masked), Array.from(byKey));
+  const spec = { getPosition: '@@=[x, y]', getFillColor: '@@=[r, g, b]', getRadius: '@@=rad' };
+  const baseBinary = scatterBaseBinaryFromTable(table, spec);
+  const data = applyScatterRowMask(baseBinary, mask);
+  assert.equal(data.length, N);
+  assert.equal(data.attributes.getPosition.value, baseBinary.positions, 'positions are shared, not copied');
+  assert.equal(data.attributes.getRadius.value, baseBinary.radii);
+  assert.equal(data.attributes.getFillColor.value[1 * 4 + 3], 255);
+  assert.equal(data.attributes.getFillColor.value[2 * 4 + 3], 0);
+});
+
+test('row masks normalise DuckDB result columns and reject a length mismatch', () => {
+  const bytes = new Uint8Array([1, 0, 1]);
+  assert.equal(rowMaskFromColumn(bytes, 3), bytes, 'a Uint8Array is used as is');
+  assert.deepEqual(Array.from(rowMaskFromColumn([true, false, true], 3)), [1, 0, 1]);
+  assert.deepEqual(Array.from(rowMaskFromColumn([1n, 0n, 1n], 3)), [1, 0, 1]);
+  assert.deepEqual(Array.from(rowMaskFromColumn(new Int32Array([0, 2, 0]), 3)), [0, 1, 0]);
+  assert.equal(rowMaskFromColumn(bytes, 4), null);
+  assert.equal(rowMaskFromColumn(null, 3), null);
+});
+
+test('row-mask SQL keeps keyless rows visible and reads in scan order', () => {
+  assert.equal(rowMaskSql('pts', '"x" > 1'),
+    'SELECT CAST(COALESCE(("x" > 1), FALSE) AS UTINYINT) AS m FROM pts');
+  assert.equal(rowMaskSql('pts', '"x" > 1', 'cell_ID'),
+    'SELECT CAST(("cell_ID" IS NULL OR COALESCE(("x" > 1), FALSE)) AS UTINYINT) AS m FROM pts');
+  assert.ok(!/ORDER BY/.test(rowMaskSql('pts', 'TRUE')), 'no sort: the scan order is the row order');
+  assert.deepEqual(alignmentPositions(12), [0, 6, 11]);
+  assert.deepEqual(alignmentPositions(1), [0]);
+  assert.deepEqual(alignmentPositions(0), []);
+  assert.equal(alignmentSampleSql('pts', 'id', [0, 6, 11]),
+    'SELECT (SELECT count(*) FROM pts) AS n, i, v FROM (SELECT row_number() OVER () - 1 AS i, "id" AS v FROM pts) ' +
+    'WHERE i IN (0, 6, 11) ORDER BY i');
+  assert.ok(rowMaskSql('pts', 'TRUE', 'we"ird').includes('"we""ird" IS NULL'), 'identifiers are quoted');
+});
+
+test('alignment holds only for the same row count and values at the sampled rows', () => {
+  const table = threeBatchTable();
+  const positions = alignmentPositions(N);
+  const sample = positions.map(i => ({ n: BigInt(N), i: BigInt(i), v: `c${i}` }));
+  assert.equal(alignmentMatches(sample, table, 'cell_ID', positions), true);
+  const numeric = positions.map(i => ({ n: N, i, v: 100 + i * 1.5 }));
+  assert.equal(alignmentMatches(numeric, table, 'x', positions), true);
+  const shuffled = sample.map((row, j) => ({ ...row, v: `c${positions[(j + 1) % positions.length]}` }));
+  assert.equal(alignmentMatches(shuffled, table, 'cell_ID', positions), false, 'a different scan order is rejected');
+  assert.equal(alignmentMatches(sample.map(r => ({ ...r, n: N + 1 })), table, 'cell_ID', positions), false);
+  assert.equal(alignmentMatches(sample.slice(1), table, 'cell_ID', positions), false);
+  assert.equal(alignmentMatches([], table, 'cell_ID', positions), false);
+  assert.equal(alignmentMatches(sample, table, 'missing', positions), false);
 });
 
 test('scatterBinaryFromTable assembles deck.gl binary data and reuses the cached base', () => {

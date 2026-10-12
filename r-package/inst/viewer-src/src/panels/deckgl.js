@@ -28,9 +28,14 @@ import * as arrow from 'apache-arrow';
 import { fitBounds, sqlInList, pointInPolygon } from '../util.js';
 import { createLatestSelectionScheduler } from '../latest-selection.js';
 import {
-  scatterBaseBinaryFromTable, applyScatterFilter,
-  colorRowsFromAccessor, colorAccessorFields, clampByte,
+  scatterBaseBinaryFromTable, applyScatterFilter, applyScatterRowMask,
+  colorRowsFromAccessor, colorAccessorFields, clampByte, tableLength,
+  rowMaskSql, rowMaskFromColumn, alignmentSampleSql, alignmentPositions, alignmentMatches,
 } from '../scatter-binary.js';
+
+// Priority.Low of @uwdata/mosaic-core 0.25, which vgplot does not re-export.
+// Row-mask queries use it so the linked Mosaic plots are answered first.
+const MOSAIC_PRIORITY_LOW = 2;
 
 const VIEWS = { OrthographicView, MapView, OrbitView, FirstPersonView };
 const LAYERS = {
@@ -88,6 +93,7 @@ async function mountSingle(board, opts, ctx) {
   board.appendChild(canvas);
 
   let filteredKeys = null;
+  let rowMasks = null;   // dataName -> Uint8Array, for binary scatter layers
   let version = 0;
   const keyField = guessKeyField(resolved);
   const lassoState = {
@@ -96,7 +102,7 @@ async function mountSingle(board, opts, ctx) {
   };
 
   const buildLayers = () =>
-    resolved.map(r => buildLayer(r, filteredKeys, version, keyField)).filter(Boolean);
+    resolved.map(r => buildLayer(r, filteredKeys, version, keyField, rowMasks)).filter(Boolean);
 
   const refreshData = async (names) => {
     const wanted = new Set(Array.isArray(names) ? names : [names]);
@@ -171,11 +177,13 @@ async function mountSingle(board, opts, ctx) {
   // ── Selection subscription (the bridge) ────────────────────────────────────
   const sel = opts.filterBy;
   const unsub = [];
-  if (sel && typeof sel.addEventListener === 'function' && keyField) {
+  if (sel && typeof sel.addEventListener === 'function' &&
+      (keyField || resolved.some(isRowMaskable))) {
     const scheduler = createLatestSelectionScheduler({
-      query: where => queryFilteredKeys(ctx, resolved, keyField, where),
-      apply: keys => {
-        filteredKeys = keys || null;
+      query: where => querySelection(ctx, resolved, keyField, where),
+      apply: result => {
+        filteredKeys = result?.keys || null;
+        rowMasks = result?.masks || null;
         version++;
         deck.setProps({ layers: buildLayers() });
       },
@@ -232,12 +240,17 @@ async function mountSingle(board, opts, ctx) {
         id: opts.id,
         keyField,
         filteredKeyCount: filteredKeys ? filteredKeys.size : null,
-        layerCounts: resolved.map(r => ({
-          id: r.spec?.id,
-          type: r.spec?.['@@type'],
-          total: visibleCount(r, null, keyField),
-          visible: visibleCount(r, filteredKeys, keyField),
-        })),
+        layerCounts: resolved.map(r => {
+          const mask = rowMasks?.get(r.dataName);
+          return {
+            id: r.spec?.id,
+            type: r.spec?.['@@type'],
+            selection: mask ? 'row-mask' : (filteredKeys ? 'keys' : null),
+            total: visibleCount(r, null, keyField),
+            visible: mask ? mask.reduce((s, v) => s + (v ? 1 : 0), 0)
+                          : visibleCount(r, filteredKeys, keyField),
+          };
+        }),
       };
     },
   };
@@ -871,6 +884,69 @@ function readPolygonWKB(view, offset, little) {
   return { polygon, offset };
 }
 
+// The selection for every layer of a panel. A binary scatter layer whose
+// DuckDB-WASM table is row-aligned with the Arrow table it draws gets a
+// one-byte-per-row mask: one scan in DuckDB and one typed-array pass in the
+// browser, whatever the number of selected rows. Any other layer, and a
+// scatter layer whose mask query fails (e.g. a predicate on a column only a
+// metadata table has), uses the key set as before.
+async function querySelection(ctx, resolved, keyField, where) {
+  const masks = new Map();
+  let needKeys = false;
+  for (const r of resolved) {
+    if (isRowMaskable(r)) {
+      if (masks.has(r.dataName)) continue;
+      const mask = await queryRowMask(ctx, r, keyField, where);
+      if (mask) { masks.set(r.dataName, mask); continue; }
+    }
+    if (r.dataName || r.wkb || Array.isArray(r.rows)) needKeys = true;
+  }
+  const keys = needKeys && keyField ? await queryFilteredKeys(ctx, resolved, keyField, where) : null;
+  return { keys, masks: masks.size ? masks : null };
+}
+
+// Plain ScatterplotLayers bound as binary attributes from a registered table.
+function isRowMaskable(r) {
+  return r.spec?.['@@type'] === 'ScatterplotLayer' && r.table && !r.rows && !r.wkb &&
+    typeof r.dataName === 'string';
+}
+
+async function queryRowMask(ctx, r, keyField, where) {
+  const n = tableLength(r.table);
+  if (r.rowMaskAligned === undefined) r.rowMaskAligned = await verifyRowAlignment(ctx, r, n, keyField);
+  if (!r.rowMaskAligned) return null;
+  const hasKey = keyField && r.table.schema?.fields?.some(f => f.name === keyField);
+  try {
+    // Uncached: every brush has a new predicate and the result is N bytes.
+    const res = await ctx.coordinator.query(rowMaskSql(r.dataName, where, hasKey ? keyField : null),
+      { type: 'arrow', cache: false, priority: MOSAIC_PRIORITY_LOW });
+    return rowMaskFromColumn(res.getChild('m').toArray(), n);
+  } catch (_) {
+    return null;
+  }
+}
+
+// The mask is positional, so it is used only after DuckDB-WASM has been seen
+// to scan this table in the order of the Arrow table the layer binds: the same
+// row count and the same values at the first, middle and last row. Checked
+// once per table; a mismatch keeps the key path.
+async function verifyRowAlignment(ctx, r, n, keyField) {
+  const fields = (r.table.schema?.fields || []).map(f => f.name);
+  const field = keyField && fields.includes(keyField) ? keyField : fields[0];
+  if (!field || !n) return false;
+  const positions = alignmentPositions(n);
+  try {
+    const res = await ctx.coordinator.query(alignmentSampleSql(r.dataName, field, positions),
+      { type: 'arrow', cache: false });
+    const ok = alignmentMatches(res.toArray(), r.table, field, positions);
+    if (!ok) console.warn('[mosaic_gl] table scan order differs from the Arrow table; using keys', r.dataName);
+    return ok;
+  } catch (e) {
+    console.warn('[mosaic_gl] row alignment check failed; using keys', r.dataName, e);
+    return false;
+  }
+}
+
 async function queryFilteredKeys(ctx, resolved, keyField, where) {
   const candidates = sourceTablesForKey(resolved, keyField);
   for (const tbl of candidates) {
@@ -916,7 +992,7 @@ function guessKeyField(resolved) {
 }
 
 // ── Layer construction ──────────────────────────────────────────────────────
-function buildLayer(resolved, filteredKeys, version, keyField) {
+function buildLayer(resolved, filteredKeys, version, keyField, rowMasks = null) {
   const spec = resolved.spec;
   if (isGeoArrowPolygonType(spec['@@type']) && (resolved.table || resolved.wkb)) {
     const binaryLayer = buildBinarySolidPolygonLayer(resolved, filteredKeys, version, keyField);
@@ -925,7 +1001,8 @@ function buildLayer(resolved, filteredKeys, version, keyField) {
     return null;
   }
   if (spec['@@type'] === 'ScatterplotLayer' && resolved.table && !resolved.rows) {
-    const binaryLayer = buildBinaryScatterplotLayer(resolved, filteredKeys, version, keyField);
+    const mask = rowMasks?.get(resolved.dataName) || null;
+    const binaryLayer = buildBinaryScatterplotLayer(resolved, filteredKeys, version, keyField, mask);
     if (binaryLayer) return binaryLayer;
     // Accessors the binary converter cannot express (functions, unusual
     // forms) take the original row-object path instead of losing the layer.
@@ -997,7 +1074,7 @@ function buildLayer(resolved, filteredKeys, version, keyField) {
   catch (e) { console.warn('[mosaic_gl] layer build failed', spec['@@type'], e); return null; }
 }
 
-function buildBinaryScatterplotLayer(resolved, filteredKeys, version, keyField) {
+function buildBinaryScatterplotLayer(resolved, filteredKeys, version, keyField, rowMask = null) {
   const spec = resolved.spec;
   const table = resolved.table;
   // Positions, base colours and radii depend only on the table, so they are
@@ -1022,7 +1099,8 @@ function buildBinaryScatterplotLayer(resolved, filteredKeys, version, keyField) 
     });
   }
   const base = resolved.scatterBinary.base;
-  const data = applyScatterFilter(base, table, keyField, filteredKeys);
+  const data = rowMask ? applyScatterRowMask(base, rowMask)
+                       : applyScatterFilter(base, table, keyField, filteredKeys);
 
   const props = {};
   for (const [k, v] of Object.entries(spec)) {

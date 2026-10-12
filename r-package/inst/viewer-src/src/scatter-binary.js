@@ -196,6 +196,74 @@ export function alphaMaskByKey(colors, table, keyField, filteredKeys) {
   return masked;
 }
 
+// Zero the alpha of every row whose mask byte is 0. The mask holds one byte per
+// row in table order (see rowMaskSql), so applying a selection is one pass over
+// typed arrays whatever its size: no keys, no strings, no Set. A missing mask
+// means "no filter".
+export function alphaMaskByRow(colors, mask) {
+  if (!mask) return colors;
+  const n = colors.length / 4;
+  if (mask.length !== n) throw new Error(`row mask has ${mask.length} entries for ${n} rows`);
+  const masked = new Uint8Array(colors.length);
+  masked.set(colors);
+  for (let i = 0; i < n; i++) if (!mask[i]) masked[i * 4 + 3] = 0;
+  return masked;
+}
+
+// One byte per row of `table`, in the table's scan order: 1 where the
+// selection holds. DuckDB keeps insertion order for a scan without ORDER BY
+// (preserve_insertion_order, on by default), so the bytes line up with the
+// Arrow table the table was inserted from; callers verify that alignment once
+// per table (alignmentSampleSql). Rows without a key stay visible, as in the
+// key path (alphaMaskByKey).
+export function rowMaskSql(table, where, keyField = null) {
+  const keep = `COALESCE((${where}), FALSE)`;
+  const cond = keyField ? `(${quoteIdent(keyField)} IS NULL OR ${keep})` : keep;
+  return `SELECT CAST(${cond} AS UTINYINT) AS m FROM ${table}`;
+}
+
+// Row count and the values of `field` at the given scan positions, read
+// through the same unordered scan as rowMaskSql.
+export function alignmentSampleSql(table, field, positions) {
+  return `SELECT (SELECT count(*) FROM ${table}) AS n, i, v FROM (` +
+    `SELECT row_number() OVER () - 1 AS i, ${quoteIdent(field)} AS v FROM ${table}) ` +
+    `WHERE i IN (${positions.join(', ')}) ORDER BY i`;
+}
+
+// The sample positions alignmentSampleSql checks: first, middle and last row.
+export function alignmentPositions(n) {
+  if (!(n > 0)) return [];
+  return [...new Set([0, Math.floor(n / 2), n - 1])];
+}
+
+// Whether a sample read back from DuckDB matches the Arrow table at the same
+// positions: equal row counts and equal values (compared as strings, so
+// numbers and BigInts from either Arrow implementation agree).
+export function alignmentMatches(sampleRows, table, field, positions) {
+  const n = tableLength(table);
+  if (!sampleRows.length || Number(sampleRows[0].n) !== n) return false;
+  if (sampleRows.length !== positions.length) return false;
+  const column = table.getChild(field);
+  if (!column) return false;
+  return sampleRows.every((row, j) =>
+    Number(row.i) === positions[j] && String(row.v) === String(valueAt(column, positions[j])));
+}
+
+// A mask column as returned by DuckDB (typed array, or values that may be
+// numbers, booleans or BigInts) as a Uint8Array of length n; null if the
+// length does not match the table.
+export function rowMaskFromColumn(values, n) {
+  if (!values || values.length !== n) return null;
+  if (values instanceof Uint8Array) return values;
+  const out = new Uint8Array(n);
+  for (let i = 0; i < n; i++) out[i] = values[i] ? 1 : 0;
+  return out;
+}
+
+function quoteIdent(name) {
+  return '"' + String(name).replace(/"/g, '""') + '"';
+}
+
 // Selection-independent buffers, computed once per table and reused across
 // filter updates. Returns null when the position accessor cannot be honoured.
 export function scatterBaseBinaryFromTable(table, spec, { defaultAlpha = 255 } = {}) {
@@ -220,6 +288,16 @@ export function applyScatterFilter(base, table, keyField, filteredKeys) {
   const attributes = {
     getPosition: { value: base.positions, size: 3 },
     getFillColor: { value: alphaMaskByKey(base.colors, table, keyField, filteredKeys), size: 4 },
+  };
+  if (base.radii) attributes.getRadius = { value: base.radii, size: 1 };
+  return { length: base.length, attributes };
+}
+
+// Same as applyScatterFilter, with the selection given as a row mask.
+export function applyScatterRowMask(base, mask) {
+  const attributes = {
+    getPosition: { value: base.positions, size: 3 },
+    getFillColor: { value: alphaMaskByRow(base.colors, mask), size: 4 },
   };
   if (base.radii) attributes.getRadius = { value: base.radii, size: 1 };
   return { length: base.length, attributes };

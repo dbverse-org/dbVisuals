@@ -15,16 +15,18 @@ test('actual panel subscription coalesces bursts and clear survives a late compl
   assert(bridge.includes('const rebuild'), 'exercise the actual panel handler, not a copy');
   const listeners = new Set(), calls = [], applied = [];
   const sel = {clauses: [], addEventListener: (_, fn) => listeners.add(fn), removeEventListener: (_, fn) => listeners.delete(fn)};
-  const mount = new Function('createLatestSelectionScheduler', 'opts', 'queryFilteredKeys', 'deck', `
-    let filteredKeys = null, version = 0;
+  const mount = new Function('createLatestSelectionScheduler', 'opts', 'querySelection', 'isRowMaskable', 'deck', `
+    let filteredKeys = null, rowMasks = null, version = 0;
     const keyField = 'id', ctx = {}, resolved = [];
     const buildLayers = () => filteredKeys;
     ${bridge}
     return () => unsub.forEach(fn => fn());
   `);
+  // querySelection resolves to { keys, masks }; these layers take the key path.
   const destroy = mount(module.createLatestSelectionScheduler, {filterBy: sel}, (_ctx, _resolved, _key, where) => {
-    const d = deferred(); calls.push({where, ...d}); return d.promise;
-  }, {setProps: props => applied.push(props.layers)});
+    const d = deferred(); calls.push({where, ...d});
+    return d.promise.then(keys => ({keys, masks: null}));
+  }, () => false, {setProps: props => applied.push(props.layers)});
   function update(predicate) { sel.clauses = [{predicate}]; for (const fn of listeners) fn(); }
   update('id = 1'); update('id = 2'); update('id = 3');
   const burstCalls = calls.length;

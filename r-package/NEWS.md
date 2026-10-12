@@ -1,3 +1,16 @@
+# dbVisuals 0.1.0.9005
+
+* Linked selections reach a `mosaic_gl()` scatter layer as one byte per row:
+  DuckDB-WASM evaluates the selection over the layer's table in scan order and
+  the viewer uses the result as the alpha mask, instead of fetching the key of
+  every selected row and testing each row against a set of strings. The cost of
+  a brush no longer grows with the number of selected rows, and the query runs
+  at Mosaic's low priority and uncached, so linked plots update first. The
+  table's scan order is checked once against the Arrow table the layer draws;
+  polygon and row-object layers, and any table that fails the check, keep the
+  key-based path.
+* Viewer bundle 0.2.12.
+
 # dbVisuals 0.1.0.9004
 
 * `mosaic_gl()` raises an error instead of flattening MultiPolygons or

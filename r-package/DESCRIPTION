@@ -1,7 +1,7 @@
 Package: dbVisuals
 Type: Package
 Title: Database-Powered Visualizations for Spatial Data
-Version: 0.1.0.9004
+Version: 0.1.0.9005
 Authors@R: c(
     person(
       "Timur", "Rizvanov",
