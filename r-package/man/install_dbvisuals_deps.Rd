@@ -4,12 +4,13 @@
 \alias{install_dbvisuals_deps}
 \title{Install Complete dbVisuals Dependencies}
 \usage{
-install_dbvisuals_deps(ask = interactive())
+install_dbvisuals_deps(ask = TRUE)
 }
 \arguments{
-\item{ask}{Logical. Ask the user for confirmation before installing in
-interactive sessions. Defaults to `interactive()`, so non-interactive
-sessions must pass `ask = FALSE` explicitly to proceed.}
+\item{ask}{Logical. Ask the user for confirmation before installing.
+Defaults to `TRUE`: interactive sessions are prompted, and
+non-interactive sessions install nothing unless the caller passes
+`ask = FALSE` explicitly.}
 }
 \value{
 Invisibly returns `TRUE` if all installations succeeded, `FALSE`

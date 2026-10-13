@@ -17,6 +17,23 @@ must be specified in \code{renderPlot()}. Note that, for height, using
 \code{"auto"} or \code{"100\%"} generally will not work as expected,
 because of how height is computed with HTML/CSS.}
 }
+\value{
+A Shiny UI element that holds a [mosaic_gl()] widget.
+}
 \description{
 Shiny output binding for the Mosaic + deck.gl viewer
+}
+\examples{
+if (interactive() && requireNamespace("shiny", quietly = TRUE) &&
+    requireNamespace("arrow", quietly = TRUE)) {
+  pts <- data.frame(id = 1:100, x = stats::rnorm(100), y = stats::rnorm(100))
+  spec <- mgl_spec(
+    data = list(pts = mgl_data(type = "table", df = pts)),
+    plot = list(list(mark = "dot", data = list(from = "pts"), x = "x", y = "y")))
+  shiny::shinyApp(
+    ui = shiny::fluidPage(mosaic_glOutput("viewer")),
+    server = function(input, output) {
+      output$viewer <- renderMosaic_gl(mosaic_gl(spec))
+    })
+}
 }

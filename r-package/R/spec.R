@@ -23,6 +23,14 @@
 #' a list. To author specs ergonomically just build a regular R list.
 #' @param ... Named top-level fields of a Mosaic spec.
 #' @return A list with class `"mgl_spec"`.
+#' @seealso [mosaic_gl()] for a complete linked example.
+#' @examples
+#' spec <- mgl_spec(
+#'   data = list(pts = mgl_data(type = "table",
+#'                              df = data.frame(x = 1:3, y = c(2, 4, 3)))),
+#'   plot = list(list(mark = "dot", data = list(from = "pts"), x = "x", y = "y"))
+#' )
+#' names(spec)
 #' @export
 mgl_spec <- function(...) {
   spec <- list(...)
@@ -45,6 +53,11 @@ mgl_spec <- function(...) {
 #' @param format Transport format for DuckDB queries. `"geoarrow"` will use a
 #'   WKB polygon envelope for `cell_ID` + `geometry` result sets and otherwise
 #'   falls back to Arrow IPC.
+#' @return A list describing the data source, for the `data` field of
+#'   [mgl_spec()].
+#' @examples
+#' mgl_data(type = "table", df = data.frame(x = 1:3, y = 3:1))
+#' mgl_data(type = "duckdb", query = "SELECT x, y FROM points")
 #' @export
 mgl_data <- function(type   = c("table", "duckdb"),
                       df     = NULL,
@@ -85,6 +98,14 @@ mgl_data <- function(type   = c("table", "duckdb"),
 #' @param title       Optional title shown above the canvas.
 #' @param width,height  CSS dimensions for the panel (number → px).
 #' @param ...         Further options passed verbatim (e.g. `initialViewState`).
+#' @return A list describing the panel, for use inside [mgl_spec()].
+#' @examples
+#' panel <- mgl_deckgl(
+#'   id = "map", filter_by = "$sel", width = 400, height = 300,
+#'   layers = list(list(`@@@@type` = "ScatterplotLayer", id = "pts", data = "pts",
+#'                      getPosition = "@@@@=[x, y]", getRadius = 2,
+#'                      radiusUnits = "pixels")))
+#' panel$input
 #' @export
 mgl_deckgl <- function(id,
                         layers,

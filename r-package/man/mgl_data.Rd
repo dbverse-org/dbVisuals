@@ -23,6 +23,10 @@ query against the `con` passed to [mosaic_gl()].}
 WKB polygon envelope for `cell_ID` + `geometry` result sets and otherwise
 falls back to Arrow IPC.}
 }
+\value{
+A list describing the data source, for the `data` field of
+  [mgl_spec()].
+}
 \description{
 Two transport modes:
   * `type = "table"` (default) — a data.frame from R, serialized as Arrow
@@ -31,4 +35,8 @@ Two transport modes:
   * `type = "duckdb"` — a SQL query against the R-side DuckDB connection.
      Result is streamed as Arrow IPC (or GeoArrow IPC when
      `format = "geoarrow"`).
+}
+\examples{
+mgl_data(type = "table", df = data.frame(x = 1:3, y = 3:1))
+mgl_data(type = "duckdb", query = "SELECT x, y FROM points")
 }

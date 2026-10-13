@@ -42,8 +42,19 @@ one, and `"clear"` removes this deck.gl panel's lasso clause.}
 
 \item{...}{Further options passed verbatim (e.g. `initialViewState`).}
 }
+\value{
+A list describing the panel, for use inside [mgl_spec()].
+}
 \description{
 Produces `list(input = "deckgl", id = ..., filterBy = ..., layers = ...,
 concat = ..., width = ..., height = ...)`. Drop it into a Mosaic spec
 anywhere an `input = "menu"` would be valid.
+}
+\examples{
+panel <- mgl_deckgl(
+  id = "map", filter_by = "$sel", width = 400, height = 300,
+  layers = list(list(`@@type` = "ScatterplotLayer", id = "pts", data = "pts",
+                     getPosition = "@@=[x, y]", getRadius = 2,
+                     radiusUnits = "pixels")))
+panel$input
 }

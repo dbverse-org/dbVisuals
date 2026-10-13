@@ -1,0 +1,74 @@
+dbVisuals bundles third-party JavaScript in two prebuilt browser applications.
+The R code and the dbVisuals sources are MIT-licensed (see LICENSE). The
+bundled components keep their own licences, all permissive, listed below.
+
+Sources of the minified bundles
+-------------------------------
+
+inst/htmlwidgets/lib/mosaic_gl/mosaic_gl-bundle.js
+  The mosaic_gl() viewer. Its source ships with the package in
+  inst/viewer-src/ (package.json and package-lock.json pin every dependency);
+  `npm ci && npm run build` in that directory reproduces the bundle.
+
+inst/sqlrooms/
+  The SQL Rooms Canvas web application served by launchBrowser(). It is
+  built from frontend/sqlrooms-ai/ in the package's source repository,
+  https://github.com/dbverse-org/dbVisuals, where package.json and
+  package-lock.json pin every dependency.
+
+Bundled components and copyright holders
+----------------------------------------
+
+deck.gl, luma.gl, loaders.gl, react-map-gl
+  Copyright vis.gl contributors; portions Copyright (c) 2015-2017 Uber
+  Technologies, Inc. MIT licence.
+
+math.gl
+  Copyright (c) 2017 Uber Technologies, Inc. MIT licence.
+
+Mosaic (@uwdata/mosaic-core, @uwdata/vgplot and related packages),
+@uwdata/flechette
+  Copyright (c) 2023-2025, UW Interactive Data Lab. BSD 3-Clause licence.
+
+DuckDB-WASM (@duckdb/duckdb-wasm)
+  Copyright 2018-2025 Stichting DuckDB Foundation. MIT licence.
+
+Apache Arrow JavaScript (apache-arrow)
+  Copyright 2017-2025 The Apache Software Foundation. Apache License 2.0.
+
+GeoArrow (@geoarrow/deck.gl-layers, @geoarrow/geoarrow-js)
+  Copyright (c) 2023 Kyle Barron; Copyright (c) 2023 geoarrow. MIT licence.
+
+SQL Rooms (@sqlrooms/*)
+  Copyright 2024-2026 SQLRooms Contributors. MIT licence.
+
+React, React DOM
+  Copyright (c) Meta Platforms, Inc. and affiliates. MIT licence.
+
+MapLibre GL JS (maplibre-gl)
+  Copyright (c) 2023, MapLibre contributors. BSD 3-Clause licence.
+
+d3 modules (d3-array and others)
+  Copyright 2010-2023 Mike Bostock. ISC licence.
+
+earcut
+  Copyright (c) 2016, Mapbox. ISC licence.
+
+Lucide icons (lucide-react)
+  Copyright (c) Lucide Icons and Contributors. ISC licence.
+
+zod
+  Copyright (c) 2025 Colin McDonnell. MIT licence.
+
+date-fns
+  Copyright (c) 2021 Sasha Koss and Lesha Koss. MIT licence.
+
+long.js
+  Copyright Daniel Wirtz. Apache License 2.0.
+
+Further transitive dependencies are listed, with their licences, in the two
+package-lock.json files named above. They are under permissive licences (MIT,
+ISC, BSD 2- and 3-Clause, Apache 2.0, BlueOak 1.0.0, Unlicense, 0BSD, Zlib) or
+dual licences that include one (MIT OR Apache-2.0, MPL-2.0 OR Apache-2.0,
+AFL-2.1 OR BSD-3-Clause, MIT OR GPL-3.0-or-later), which are used here under
+the permissive option.

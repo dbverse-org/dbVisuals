@@ -1,3 +1,17 @@
+# dbVisuals 0.1.0
+
+First CRAN release; it contains every change listed below for the development
+versions. Preparing it for CRAN:
+
+* `install_dbvisuals_deps()` asks before installing by default (`ask = TRUE`);
+  a non-interactive session installs nothing unless `ask = FALSE` is passed.
+* Examples for `mosaic_gl()`, `mgl_spec()`, `mgl_data()`, `mgl_deckgl()`,
+  `mosaic_glOutput()` and `renderMosaic_gl()`; `?mosaic_gl` documents the
+  internet access the viewer needs and how to secure its Shiny query channel.
+* `inst/COPYRIGHTS` lists the bundled JavaScript libraries, their copyright
+  holders and licences, and where the source of each bundle is.
+* Authors, funding and repository URLs updated.
+
 # dbVisuals 0.1.0.9005
 
 * Linked selections reach a `mosaic_gl()` scatter layer as one byte per row:

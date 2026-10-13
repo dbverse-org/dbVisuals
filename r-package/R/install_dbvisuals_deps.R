@@ -16,9 +16,10 @@
 #' installation starts; in non-interactive sessions the function aborts with a
 #' message.
 #'
-#' @param ask Logical. Ask the user for confirmation before installing in
-#'   interactive sessions. Defaults to `interactive()`, so non-interactive
-#'   sessions must pass `ask = FALSE` explicitly to proceed.
+#' @param ask Logical. Ask the user for confirmation before installing.
+#'   Defaults to `TRUE`: interactive sessions are prompted, and
+#'   non-interactive sessions install nothing unless the caller passes
+#'   `ask = FALSE` explicitly.
 #'
 #' @return Invisibly returns `TRUE` if all installations succeeded, `FALSE`
 #'   otherwise (e.g., the user declined, or a non-interactive session).
@@ -32,7 +33,7 @@
 #' # Skip the prompt (e.g. inside an automated environment)
 #' install_dbvisuals_deps(ask = FALSE)
 #' }
-install_dbvisuals_deps <- function(ask = interactive()) {
+install_dbvisuals_deps <- function(ask = TRUE) {
   # rDeckgl and rMosaic are on CRAN, so nothing here needs a GitHub remote.
   cran_pkgs <- c("DBI", "duckdb", "rDeckgl", "rMosaic")
 

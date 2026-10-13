@@ -1,30 +1,53 @@
 Package: dbVisuals
 Type: Package
 Title: Database-Powered Visualizations for Spatial Data
-Version: 0.1.0.9005
+Version: 0.1.0
 Authors@R: c(
-    person(
-      "Timur", "Rizvanov",
-      email = "timurr@bu.edu",
-      role = c("aut", "cre")
-    )
+    person("Edward C.", "Ruiz", , "ecr7407@gmail.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-9174-5387")),
+    person("Timur", "Rizvanov", , "timurr@bu.edu", role = "aut"),
+    person("Ruben", "Dries", role = "rev"),
+    person("National Human Genome Research Institute", role = "fnd",
+           comment = c(grant = "1R01HG014487-01")),
+    person("vis.gl contributors", role = "cph",
+           comment = "bundled deck.gl, luma.gl, loaders.gl, react-map-gl"),
+    person("Uber Technologies, Inc.", role = "cph",
+           comment = "portions of bundled deck.gl, luma.gl, math.gl"),
+    person("UW Interactive Data Lab", role = "cph",
+           comment = "bundled Mosaic and flechette"),
+    person("Stichting DuckDB Foundation", role = "cph",
+           comment = "bundled DuckDB-WASM"),
+    person("The Apache Software Foundation", role = "cph",
+           comment = "bundled Apache Arrow JavaScript"),
+    person("Kyle Barron", role = "cph",
+           comment = "bundled GeoArrow deck.gl layers"),
+    person("SQLRooms Contributors", role = "cph",
+           comment = "bundled SQL Rooms"),
+    person("Meta Platforms, Inc. and affiliates", role = "cph",
+           comment = "bundled React"),
+    person("MapLibre contributors", role = "cph",
+           comment = "bundled MapLibre GL JS"),
+    person("Mike Bostock", role = "cph",
+           comment = "bundled d3 modules"),
+    person("Mapbox", role = "cph",
+           comment = "bundled earcut"),
+    person("Authors of the other bundled JavaScript libraries", role = "cph",
+           comment = "see inst/COPYRIGHTS")
   )
-Author: Timur Rizvanov [aut, cre]
-Maintainer: Timur Rizvanov <timurr@bu.edu>
-Description: Provides a browser-based SQL Rooms interface for interactive exploration
-    of GiottoDB spatial databases. SQL Rooms enables SQL queries
-    and interactive visualizations using deck.gl and Mosaic. Also provides a
-    spec-driven htmlwidget that bundles Mosaic and deck.gl in a single browser
-    scope, sharing one DuckDB-WASM coordinator and one selection so Mosaic views
-    cross-filter GPU-rendered scatterplots and GeoArrow polygon layers, with
-    server-side data hydration over Arrow IPC and GeoArrow. Complements the
-    'rDeckgl' and 'rMosaic' packages on CRAN.
+Description: Interactive, linked visualizations of spatial data held in
+    'DuckDB' databases, such as 'GiottoDB' spatial omics datasets. A
+    browser workspace built on 'SQL Rooms' creates and links maps, tables and
+    charts without code, and an 'htmlwidgets' viewer combines 'Mosaic' views
+    and 'deck.gl' layers over one 'DuckDB-WASM' instance and one selection, so
+    a brush in any view filters the others. Results of queries on a 'DuckDB'
+    connection reach the browser as 'Arrow' data written by 'DuckDB', without
+    materialising the rows in R. Complements the 'rDeckgl' and 'rMosaic'
+    packages. Both browser components load 'DuckDB-WASM' from a public content
+    delivery network, so using them requires internet access.
 License: MIT + file LICENSE
-URL: https://github.com/dbverse-org/dbVisuals2, https://dbverse-org.github.io/dbVisuals2/
-BugReports: https://github.com/dbverse-org/dbVisuals2/issues
+URL: https://github.com/dbverse-org/dbVisuals, https://dbverse-org.github.io/dbVisuals/
+BugReports: https://github.com/dbverse-org/dbVisuals/issues
 Encoding: UTF-8
-LazyData: true
-RoxygenNote: 7.3.3
 Depends:
     R (>= 4.1.0)
 Imports:
@@ -46,15 +69,13 @@ Suggests:
     shiny,
     nanoarrow,
     adbcdrivermanager,
+    rDeckgl,
+    rMosaic,
     remotes,
     testthat (>= 3.0.0),
     withr,
     knitr,
     rmarkdown
-Enhances:
-    Mosaic.gl,
-    rDeckgl,
-    rMosaic
 Config/Needs/check:
     testthat,
     knitr,
@@ -72,3 +93,4 @@ Config/Needs/website:
     knitr,
     rmarkdown
 VignetteBuilder: knitr
+Config/roxygen2/version: 8.1.0

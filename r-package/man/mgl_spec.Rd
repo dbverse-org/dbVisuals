@@ -20,3 +20,14 @@ Accepts the same shape as Mosaic / rMosaic:
 Pass each top-level field as a named argument and they will be packaged into
 a list. To author specs ergonomically just build a regular R list.
 }
+\examples{
+spec <- mgl_spec(
+  data = list(pts = mgl_data(type = "table",
+                             df = data.frame(x = 1:3, y = c(2, 4, 3)))),
+  plot = list(list(mark = "dot", data = list(from = "pts"), x = "x", y = "y"))
+)
+names(spec)
+}
+\seealso{
+[mosaic_gl()] for a complete linked example.
+}

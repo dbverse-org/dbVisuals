@@ -31,7 +31,6 @@ connection's underlying DuckDB file. Mutually exclusive with `db_path`.}
 \item{daemon}{Logical. Run server in background (default: FALSE)}
 
 \item{host}{Host address (default: "127.0.0.1")}
-
 }
 \value{
 Invisibly returns a list with server information.

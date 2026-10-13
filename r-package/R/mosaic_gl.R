@@ -37,6 +37,42 @@
 #'   `htmlwidgets::saveWidget(selfcontained = FALSE)` all resolve them
 #'   (`selfcontained = TRUE` is not supported for file transport).
 #' @return An htmlwidget.
+#' @section Internet access:
+#' The widget loads 'DuckDB-WASM' from a public content delivery network
+#' (jsDelivr) when it is displayed, so viewing it requires internet access.
+#' @section Security:
+#' In a Shiny session with `con` supplied, the widget's query channel runs the
+#' SQL that the page sends on `con`. That is harmless when the app is used
+#' locally, but in an app deployed to other users any visitor can send SQL to
+#' that connection, and 'DuckDB' SQL can read files the server process can
+#' read. For a deployed app, pass a read-only connection and disable external
+#' access first, e.g. `DBI::dbExecute(con, "SET enable_external_access = false")`
+#' followed by `DBI::dbExecute(con, "SET lock_configuration = true")`.
+#' @examples
+#' cells <- data.frame(cell_ID = sprintf("c%02d", 1:50),
+#'                     x = stats::runif(50), y = stats::runif(50),
+#'                     total_expr = stats::rpois(50, 20))
+#' spec <- mgl_spec(
+#'   data   = list(cells = mgl_data(type = "table", df = cells)),
+#'   params = list(sel = list(select = "crossfilter")),
+#'   vconcat = list(
+#'     list(plot = list(
+#'       list(mark = "rectY", data = list(from = "cells", filterBy = "$sel"),
+#'            x = list(bin = "total_expr"), y = list(count = NULL)),
+#'       list(select = "intervalX", as = "$sel")),
+#'       width = 400, height = 120),
+#'     mgl_deckgl(
+#'       id = "map", filter_by = "$sel", width = 400, height = 300,
+#'       layers = list(list(`@@@@type` = "ScatterplotLayer", id = "cells",
+#'                          data = "cells", getPosition = "@@@@=[x, y]",
+#'                          getRadius = 3, radiusUnits = "pixels")))
+#'   )
+#' )
+#' # Building the widget serialises the data frame with 'arrow'.
+#' if (requireNamespace("arrow", quietly = TRUE)) {
+#'   widget <- mosaic_gl(spec)
+#'   if (interactive()) widget
+#' }
 #' @export
 mosaic_gl <- function(spec, con = NULL, width = NULL, height = NULL, element_id = NULL,
                       data_transport = c("auto", "inline", "file"), data_dir = NULL) {
@@ -128,6 +164,20 @@ mosaic_gl <- function(spec, con = NULL, width = NULL, height = NULL, element_id 
 
 #' Shiny output binding for the Mosaic + deck.gl viewer
 #' @inheritParams shiny::imageOutput
+#' @return A Shiny UI element that holds a [mosaic_gl()] widget.
+#' @examples
+#' if (interactive() && requireNamespace("shiny", quietly = TRUE) &&
+#'     requireNamespace("arrow", quietly = TRUE)) {
+#'   pts <- data.frame(id = 1:100, x = stats::rnorm(100), y = stats::rnorm(100))
+#'   spec <- mgl_spec(
+#'     data = list(pts = mgl_data(type = "table", df = pts)),
+#'     plot = list(list(mark = "dot", data = list(from = "pts"), x = "x", y = "y")))
+#'   shiny::shinyApp(
+#'     ui = shiny::fluidPage(mosaic_glOutput("viewer")),
+#'     server = function(input, output) {
+#'       output$viewer <- renderMosaic_gl(mosaic_gl(spec))
+#'     })
+#' }
 #' @export
 mosaic_glOutput <- function(outputId, width = "100%", height = "600px") {
   htmlwidgets::shinyWidgetOutput(outputId, "mosaic_gl", width, height,
@@ -136,6 +186,8 @@ mosaic_glOutput <- function(outputId, width = "100%", height = "600px") {
 
 #' Shiny render expression for the Mosaic + deck.gl viewer
 #' @inheritParams shiny::renderImage
+#' @return A Shiny render function for use with [mosaic_glOutput()].
+#' @inherit mosaic_glOutput examples
 #' @export
 renderMosaic_gl <- function(expr, env = parent.frame(), quoted = FALSE) {
   if (!quoted) expr <- substitute(expr)

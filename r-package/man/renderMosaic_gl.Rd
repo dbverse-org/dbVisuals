@@ -19,6 +19,23 @@ will be used when \code{expr} is evaluated. If \code{expr} is a quosure and you
 would like to use its expression as a value for \code{expr}, then you must set
 \code{quoted} to \code{TRUE}.}
 }
+\value{
+A Shiny render function for use with [mosaic_glOutput()].
+}
 \description{
 Shiny render expression for the Mosaic + deck.gl viewer
+}
+\examples{
+if (interactive() && requireNamespace("shiny", quietly = TRUE) &&
+    requireNamespace("arrow", quietly = TRUE)) {
+  pts <- data.frame(id = 1:100, x = stats::rnorm(100), y = stats::rnorm(100))
+  spec <- mgl_spec(
+    data = list(pts = mgl_data(type = "table", df = pts)),
+    plot = list(list(mark = "dot", data = list(from = "pts"), x = "x", y = "y")))
+  shiny::shinyApp(
+    ui = shiny::fluidPage(mosaic_glOutput("viewer")),
+    server = function(input, output) {
+      output$viewer <- renderMosaic_gl(mosaic_gl(spec))
+    })
+}
 }
