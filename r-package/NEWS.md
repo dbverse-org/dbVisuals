@@ -11,6 +11,8 @@ versions. Preparing it for CRAN:
 * `inst/COPYRIGHTS` lists the bundled JavaScript libraries, their copyright
   holders and licences, and where the source of each bundle is.
 * Authors, funding and repository URLs updated.
+* Removed the unused MCP agent script (`inst/mcp/`); the agent API it called
+  was removed from `launchBrowser()` in 0.1.0.9004.
 
 # dbVisuals 0.1.0.9005
 
