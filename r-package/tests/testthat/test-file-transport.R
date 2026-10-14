@@ -243,6 +243,10 @@ test_that("options(dbVisuals.export_methods) restricts the ladder", {
 })
 
 test_that("file transport ships envelopes as a widget dependency attachment", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("duckdb")
+  skip_if_not_installed("arrow")
+  skip_if_not_installed("withr")
   con <- local_points_con(500L)
   data_dir <- withr::local_tempdir()
   w <- mosaic_gl(points_spec(), con = con, data_transport = "file", data_dir = data_dir)
@@ -267,6 +271,10 @@ test_that("file transport ships envelopes as a widget dependency attachment", {
 })
 
 test_that("file transport works without data_dir", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("duckdb")
+  skip_if_not_installed("arrow")
+  skip_if_not_installed("withr")
   con <- local_points_con(100L)
   w <- mosaic_gl(points_spec(), con = con, data_transport = "file")
   deps <- Filter(function(d) startsWith(d$name, "mosaic-gl-data-"), w$dependencies)
@@ -275,6 +283,10 @@ test_that("file transport works without data_dir", {
 })
 
 test_that("a multi-statement query is refused before any rung runs", {
+  skip_if_not_installed("DBI")
+  skip_if_not_installed("duckdb")
+  skip_if_not_installed("arrow")
+  skip_if_not_installed("withr")
   con <- local_points_con(50L)
   expect_error(
     mosaic_gl(points_spec("SELECT x, y FROM points; DROP TABLE points"),
