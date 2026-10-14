@@ -8,7 +8,11 @@ vignette: >
 ---
 
 ```{r, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+# mosaic_gl() serialises R data frames with 'arrow', a suggested package that
+# is not available on every platform (e.g. R-devel); without it the code is
+# shown but not run.
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>",
+                      eval = requireNamespace("arrow", quietly = TRUE))
 ```
 
 `mosaic_gl()` puts Mosaic views and GPU deck.gl layers in one browser scope over
