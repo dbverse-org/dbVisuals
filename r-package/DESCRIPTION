@@ -8,31 +8,7 @@ Authors@R: c(
     person("Timur", "Rizvanov", , "timurr@bu.edu", role = "aut"),
     person("Ruben", "Dries", role = "rev"),
     person("National Human Genome Research Institute", role = "fnd",
-           comment = c(grant = "1R01HG014487-01")),
-    person("vis.gl contributors", role = "cph",
-           comment = "bundled deck.gl, luma.gl, loaders.gl, react-map-gl"),
-    person("Uber Technologies, Inc.", role = "cph",
-           comment = "portions of bundled deck.gl, luma.gl, math.gl"),
-    person("UW Interactive Data Lab", role = "cph",
-           comment = "bundled Mosaic and flechette"),
-    person("Stichting DuckDB Foundation", role = "cph",
-           comment = "bundled DuckDB-WASM"),
-    person("The Apache Software Foundation", role = "cph",
-           comment = "bundled Apache Arrow JavaScript"),
-    person("Kyle Barron", role = "cph",
-           comment = "bundled GeoArrow deck.gl layers"),
-    person("SQLRooms Contributors", role = "cph",
-           comment = "bundled SQL Rooms"),
-    person("Meta Platforms, Inc. and affiliates", role = "cph",
-           comment = "bundled React"),
-    person("MapLibre contributors", role = "cph",
-           comment = "bundled MapLibre GL JS"),
-    person("Mike Bostock", role = "cph",
-           comment = "bundled d3 modules"),
-    person("Mapbox", role = "cph",
-           comment = "bundled earcut"),
-    person("Authors of the other bundled JavaScript libraries", role = "cph",
-           comment = "see inst/COPYRIGHTS")
+           comment = c(grant = "1R01HG014487-01"))
   )
 Description: Interactive, linked visualizations of spatial data held in
     'DuckDB' databases, such as 'GiottoDB' spatial omics datasets. A
@@ -45,6 +21,7 @@ Description: Interactive, linked visualizations of spatial data held in
     packages. Both browser components load 'DuckDB-WASM' from a public content
     delivery network, so using them requires internet access.
 License: MIT + file LICENSE
+Copyright: See file inst/COPYRIGHTS for the bundled JavaScript libraries.
 URL: https://github.com/dbverse-org/dbVisuals, https://dbverse-org.github.io/dbVisuals/
 BugReports: https://github.com/dbverse-org/dbVisuals/issues
 Encoding: UTF-8

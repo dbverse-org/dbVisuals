@@ -30,8 +30,8 @@ are below.
 
 Both browser applications are minified bundles of permissively licensed
 libraries (MIT, BSD, ISC, Apache 2.0). Every bundled component and its
-copyright holder is listed in `inst/COPYRIGHTS`, and the copyright holders are
-named in `Authors@R` with role `cph`.
+copyright holder is listed in `inst/COPYRIGHTS`, which the `Copyright` field of
+DESCRIPTION refers to.
 
 * Source of the `mosaic_gl()` bundle: shipped in the package, `inst/viewer-src/`
   (with `package-lock.json`; `npm ci && npm run build` reproduces it).
