@@ -8,11 +8,10 @@ vignette: >
 ---
 
 ```{r, include = FALSE}
-# mosaic_gl() serialises R data frames with 'arrow', a suggested package that
-# is not available on every platform (e.g. R-devel); without it the code is
-# shown but not run.
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>",
-                      eval = requireNamespace("arrow", quietly = TRUE))
+# The examples are shown but not run when the vignette is built: each one
+# embeds a full interactive widget, which would add several MB to the package.
+# Run them in R to see the linked views.
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", eval = FALSE)
 ```
 
 `mosaic_gl()` puts Mosaic views and GPU deck.gl layers in one browser scope over

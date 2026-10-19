@@ -182,5 +182,5 @@ install.packages(c("DBI", "duckdb", "shiny", "rDeckgl", "rMosaic"))
   `vignette("reproducing-paper-figures", package = "dbVisuals")`
 - Explore the function reference: `?launchBrowser`
 - Learn about data export: `?sqlrooms_export_table`
-- Check out GiottoDB for spatial omics analysis: [GiottoDB documentation](https://github.com/dbverse-org/GiottoDB)
-- Report issues: [GitHub Issues](https://github.com/dbverse-org/dbVisuals2/issues)
+- Check out GiottoDB for spatial omics analysis: [GiottoDB documentation](https://github.com/giotto-suite/GiottoDB)
+- Report issues: [GitHub Issues](https://github.com/dbverse-org/dbVisuals/issues)
