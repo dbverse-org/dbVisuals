@@ -5,15 +5,28 @@ template:
   bootswatch: flatly
 
 home:
-  title: "dbVisuals: Database-Powered Visualizations for Spatial Data"
+  title: "dbVisuals: Database-Powered Visualizations for Tabular Data"
   description: >
-    A local SQLRooms workspace and an R htmlwidget for linked, database-backed visualizations of dbverse and DuckDB data.
+    A browser workspace and an R htmlwidget for linked, database-backed visualizations of DuckDB, dbverse and other tabular data.
+
+# Footer and sidebar list the people who built and reviewed the package; the
+# funder stays in DESCRIPTION.
+authors:
+  footer:
+    roles: [aut, cre]
+  sidebar:
+    roles: [aut, cre, rev]
 
 navbar:
   structure:
     left: [intro, reference, articles, news]
-    right: [search, github]
+    right: [search, webapp, github]
   components:
+    webapp:
+      text: Web App
+      icon: fa-arrow-up-right-from-square
+      href: https://dbvisuals.pages.dev/
+      aria-label: Open the dbVisuals web app
     home: ~
     reference:
       text: Reference
