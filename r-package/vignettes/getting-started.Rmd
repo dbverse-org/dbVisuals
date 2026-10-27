@@ -30,7 +30,7 @@ With it you can:
 
 ## Installation
 
-```{r}
+```{r, eval = FALSE}
 install.packages("dbVisuals")
 
 # development version
@@ -74,7 +74,7 @@ copied into your R session.
 Without a database file, the workspace runs on DuckDB-WASM in the browser, with
 the bundled demonstration tables.
 
-```{r}
+```{r, eval = FALSE}
 library(dbVisuals)
 
 # Launch the standalone browser workspace
@@ -86,7 +86,7 @@ dashboard <- launchBrowser()
 For spatial data, open a [GiottoDB](https://github.com/giotto-suite/GiottoDB)
 database.
 
-```{r}
+```{r, eval = FALSE}
 library(dbVisuals)
 library(GiottoDB)
 library(GiottoData)
@@ -110,7 +110,7 @@ make your changes, close the connection and launch again.
 
 When you're done, clean up the background processes:
 
-```{r}
+```{r, eval = FALSE}
 stop_sqlrooms(dashboard)
 ```
 
@@ -119,7 +119,7 @@ stop_sqlrooms(dashboard)
 The workspace uses ports 3001 (R server) and 5173 (browser app). If either is
 in use, choose others:
 
-```{r}
+```{r, eval = FALSE}
 dashboard <- launchBrowser(db_path = "my_data.duckdb",
                            port = 3002, frontend_port = 5174)
 ```

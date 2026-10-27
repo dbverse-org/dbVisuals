@@ -22,7 +22,7 @@ Each example below is self-contained: it builds its own data, so you can paste i
 straight into the console. The last example keeps its data in a DuckDB database
 and draws polygons.
 
-```{r setup}
+```{r setup, eval = FALSE}
 library(dbVisuals)
 set.seed(1)
 ```
@@ -47,7 +47,7 @@ share one DuckDB-WASM instance, so a reused name replaces the earlier table.
 A deck.gl scatterplot beside a Mosaic histogram. Brushing the histogram filters
 the points; the interval brush writes to `$sel` and the deck panel reads it.
 
-```{r ex1}
+```{r ex1, eval = FALSE}
 cells <- data.frame(
   cell_ID    = sprintf("cell_%04d", 1:4000),
   x          = rnorm(4000, 0, 40),
@@ -110,7 +110,7 @@ tissue coordinates — the default is geographic.
 definition, each pane binding different columns to `x` and `y`. Toggling a bar in
 the Mosaic bar chart filters every pane at once.
 
-```{r ex3}
+```{r ex3, eval = FALSE}
 dimred <- data.frame(
   cell_ID     = sprintf("cell_%04d", 1:2000),
   leiden_clus = sample(sprintf("c%02d", 1:8), 2000, replace = TRUE),
@@ -170,7 +170,7 @@ leave the data in DuckDB and send only the query: `mgl_data(type = "duckdb")`
 with a `con`. Polygons travel as GeoArrow rather than JSON, and are drawn with
 `GeoArrowPolygonLayer`.
 
-```{r ex4}
+```{r ex4, eval = FALSE}
 # A small spatial database, so this example runs anywhere. Substitute your own
 # file and table names for real work.
 db <- file.path(tempdir(), "cells.duckdb")
