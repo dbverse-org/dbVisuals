@@ -2,7 +2,7 @@
 
 ## Introduction
 
-dbVisuals is a Canvas visualization workspace built on
+dbVisuals is a visualization workspace built on
 [SQLRooms](https://sqlrooms.org/) for interactive exploration of
 [dbverse](https://github.com/dbverse-org) data.
 
