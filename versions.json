@@ -1,5 +1,5 @@
 {
-  "_comment": "Declared versions, checked by npm run test:versions. See COMPATIBILITY.md for runtime differences.",
+  "_comment": "Declared versions, checked by npm run test:versions.",
   "policy": "Canvas anchors version checks, not spec portability or performance parity across runtimes.",
   "anchor": "frontend/sqlrooms-ai",
   "contract": {

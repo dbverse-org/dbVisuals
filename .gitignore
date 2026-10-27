@@ -38,7 +38,6 @@ r-package/inst/viewer-src/node_modules/
 r-package/inst/viewer-src/dist/
 frontend/sqlrooms-ai/dist/
 docs/*
-!docs/visualization-bridge.md
 r-package/inst/doc
 
 # Publish only the two paper viewer routes; keep other local scratch files out.
