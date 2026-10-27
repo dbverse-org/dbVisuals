@@ -71,8 +71,7 @@
 <h2 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
 </h2>
 <p>dbVisuals is a Canvas visualization workspace built on <a href="https://sqlrooms.org/" class="external-link">SQLRooms</a> for interactive exploration of
-<a href="https://github.com/dbverse-org" class="external-link">dbverse</a> data. This
-submission branch excludes AI and arbitrary R-code execution.</p>
+<a href="https://github.com/dbverse-org" class="external-link">dbverse</a> data.</p>
 <div class="section level3">
 <h3 id="dbvisuals-features">dbVisuals features<a class="anchor" aria-label="anchor" href="#dbvisuals-features"></a>
 </h3>
@@ -102,19 +101,23 @@ common data in your database</li>
 <h3 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h3>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Install the reviewed local checkout; this repository is still private.</span></span>
-<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_local</span><span class="op">(</span><span class="st">"r-package"</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"dbVisuals"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># development version</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"dbVisuals"</span>,</span>
+<span>                 repos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"https://dbverse-org.r-universe.dev"</span>,</span>
+<span>                           <span class="st">"https://cloud.r-project.org"</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Optional: Install all recommended dependencies</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/dbverse-org/dbVisuals" class="external-link">dbVisuals</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/install_dbvisuals_deps.html">install_dbvisuals_deps</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>dbVisuals automatically provides access to:</p>
+<p>dbVisuals works with two companion packages on CRAN:</p>
 <ul>
 <li>
-<a href="https://github.com/TiRizvanov/rDeckgl" class="external-link">rDeckgl</a> - R
+<a href="https://CRAN.R-project.org/package=rDeckgl" class="external-link">rDeckgl</a> - R
 interface to deck.gl for WebGL visualizations</li>
 <li>
-<a href="https://github.com/TiRizvanov/rMosaic" class="external-link">rMosaic</a> - R
+<a href="https://CRAN.R-project.org/package=rMosaic" class="external-link">rMosaic</a> - R
 interface to Mosaic for interactive linked views</li>
 </ul>
 </div>

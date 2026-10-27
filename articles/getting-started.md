@@ -4,8 +4,7 @@
 
 dbVisuals is a Canvas visualization workspace built on
 [SQLRooms](https://sqlrooms.org/) for interactive exploration of
-[dbverse](https://github.com/dbverse-org) data. This submission branch
-excludes AI and arbitrary R-code execution.
+[dbverse](https://github.com/dbverse-org) data.
 
 ### dbVisuals features
 
@@ -24,19 +23,23 @@ excludes AI and arbitrary R-code execution.
 
 ``` r
 
-# Install the reviewed local checkout; this repository is still private.
-remotes::install_local("r-package")
+install.packages("dbVisuals")
+
+# development version
+install.packages("dbVisuals",
+                 repos = c("https://dbverse-org.r-universe.dev",
+                           "https://cloud.r-project.org"))
 
 # Optional: Install all recommended dependencies
 library(dbVisuals)
 install_dbvisuals_deps()
 ```
 
-dbVisuals automatically provides access to:
+dbVisuals works with two companion packages on CRAN:
 
-- [rDeckgl](https://github.com/TiRizvanov/rDeckgl) - R interface to
+- [rDeckgl](https://CRAN.R-project.org/package=rDeckgl) - R interface to
   deck.gl for WebGL visualizations
-- [rMosaic](https://github.com/TiRizvanov/rMosaic) - R interface to
+- [rMosaic](https://CRAN.R-project.org/package=rMosaic) - R interface to
   Mosaic for interactive linked views
 
 ### Quick Start

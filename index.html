@@ -57,18 +57,49 @@
 </nav><div class="container template-home">
 <div class="row">
   <main id="main" class="col-md-9"><div class="section level1">
-<div class="page-header"><h1 id="dbvisuals-r-interface">dbVisuals R interface<a class="anchor" aria-label="anchor" href="#dbvisuals-r-interface"></a>
+<div class="page-header"><h1 id="dbvisuals">dbVisuals<a class="anchor" aria-label="anchor" href="#dbvisuals"></a>
 </h1></div>
-<p>This private source package launches the non-AI Canvas workspace and includes the separate <code><a href="reference/mosaic_gl.html">mosaic_gl()</a></code> linked R widget. It is not a CRAN release.</p>
-<p>From the repository root:</p>
+<p>dbVisuals builds linked, database-backed visualizations of spatial data in R. It has two entry points:</p>
+<ul>
+<li>
+<strong>Canvas</strong>, a browser workspace started with <code><a href="reference/launchBrowser.html">launchBrowser()</a></code>, where you import data, add maps, tables and charts, and link them without writing code.</li>
+<li>
+<strong><code><a href="reference/mosaic_gl.html">mosaic_gl()</a></code></strong>, an htmlwidget that combines Mosaic views and deck.gl layers over one DuckDB-WASM database and one shared selection, so a brush in any view filters the others.</li>
+</ul>
+<div class="section level2">
+<h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
+</h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_local</span><span class="op">(</span><span class="st">"r-package"</span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/dbverse-org/dbVisuals" class="external-link">dbVisuals</a></span><span class="op">)</span></span>
-<span><span class="va">dashboard</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span><span class="op">)</span>                      <span class="co"># standalone DuckDB-WASM</span></span>
-<span><span class="co"># dashboard &lt;- launchBrowser(db_path = "test.db") # native DuckDB</span></span>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"dbVisuals"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># development version</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"dbVisuals"</span>,</span>
+<span>                 repos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"https://dbverse-org.r-universe.dev"</span>,</span>
+<span>                           <span class="st">"https://cloud.r-project.org"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="getting-started">Getting started<a class="anchor" aria-label="anchor" href="#getting-started"></a>
+</h2>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/dbverse-org/dbVisuals" class="external-link">dbVisuals</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">dashboard</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span><span class="op">)</span>                          <span class="co"># standalone, in the browser</span></span>
+<span><span class="co"># dashboard &lt;- launchBrowser(db_path = "data.duckdb") # an existing DuckDB database</span></span>
 <span><span class="fu"><a href="reference/stop_sqlrooms.html">stop_sqlrooms</a></span><span class="op">(</span><span class="va">dashboard</span><span class="op">)</span></span></code></pre></div>
-<p>Native launch requires closing other writer connections to the database first. It authenticates the local frontend but does not sandbox authorized SQL. Standalone browser imports are not synchronized to R.</p>
-<p>Use <code><a href="reference/launchBrowser.html">?launchBrowser</a></code> and <code><a href="reference/mosaic_gl.html">?mosaic_gl</a></code> for their distinct interfaces. The repository <a href="../README.html">README</a> covers Canvas development; <a href="../COMPATIBILITY.html">COMPATIBILITY.md</a> records runtime and spec boundaries.</p>
+<p>Close any other connection that writes to a database before opening it with <code><a href="reference/launchBrowser.html">launchBrowser()</a></code>. The browser components load DuckDB-WASM from a public CDN, so they need internet access.</p>
+<p>See <code><a href="articles/getting-started.html">vignette("getting-started", package = "dbVisuals")</a></code>, <code><a href="reference/launchBrowser.html">?launchBrowser</a></code> and <code><a href="reference/mosaic_gl.html">?mosaic_gl</a></code> for more.</p>
+</div>
+<div class="section level2">
+<h2 id="learn-more">Learn more<a class="anchor" aria-label="anchor" href="#learn-more"></a>
+</h2>
+<ul>
+<li>Documentation: <a href="https://dbverse-org.github.io/dbVisuals/" class="uri">https://dbverse-org.github.io/dbVisuals/</a>
+</li>
+<li>Source code and issues: <a href="https://github.com/dbverse-org/dbVisuals" class="external-link uri">https://github.com/dbverse-org/dbVisuals</a>
+</li>
+<li>dbVisuals is part of <a href="https://dbverse-org.github.io/dbverse/" class="external-link">dbverse</a>.</li>
+</ul>
+</div>
 </div>
   </main><aside class="col-md-3"><div class="links">
 <h2 data-toc-skip>Links</h2>

@@ -296,7 +296,7 @@ builds the same linked-view patterns from self-contained data, with no
 database required.
 
 Versions of deck.gl, Mosaic, GeoArrow and Arrow are held to one contract
-across this package and the front end; see `COMPATIBILITY.md` and
-`versions.json` at the repository root. From that root, run
+across this package and the front end; see `versions.json` at the
+repository root. From that root, run
 `npm --prefix frontend/sqlrooms-ai run test:versions` to check the
 contract.
