@@ -44,6 +44,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
 </form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://dbvisuals.pages.dev/" aria-label="Open the dbVisuals web app"><span class="fa fa-arrow-up-right-from-square"></span> Web App</a></li>
 <li class="nav-item"><a class="external-link nav-link" href="https://github.com/dbverse-org/dbVisuals" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
@@ -71,32 +72,16 @@
 <h2 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
 </h2>
 <p>dbVisuals is a visualization workspace built on <a href="https://sqlrooms.org/" class="external-link">SQLRooms</a> for interactive exploration of
-<a href="https://github.com/dbverse-org" class="external-link">dbverse</a> data.</p>
-<div class="section level3">
-<h3 id="dbvisuals-features">dbVisuals features<a class="anchor" aria-label="anchor" href="#dbvisuals-features"></a>
-</h3>
+tabular and database-backed data, from DuckDB databases, <a href="https://github.com/dbverse-org" class="external-link">dbverse</a> objects and data
+files. With it you can:</p>
 <ul>
-<li>
-<strong>Dropzone</strong> - Drag and drop files directly into the UI
-for exploration</li>
-<li>
-<strong>SQL Editor</strong> - Run queries on database-backed
-objects</li>
-<li>
-<strong>Hardware-accelerated Visualizations</strong> -
-High-performance WebGL spatial rendering using <a href="https://deck.gl/" class="external-link">deck.gl</a>
-</li>
-<li>
-<strong>Interactive Linked Views</strong> - Create interactive
-linked visualizations using <a href="https://github.com/uwdata/mosaic" class="external-link">Mosaic specs</a>
-</li>
-<li>
-<strong>Live Connection</strong> - Call the UI from R</li>
-<li>
-<strong>Smart Chart Builder</strong> - Easily create charts based on
-common data in your database</li>
+<li>open DuckDB databases and CSV, TSV, Parquet, JSON or Arrow
+files;</li>
+<li>build linked maps, charts and tables, where a brush in one view
+filters the others;</li>
+<li>launch the workspace from R, or combine Mosaic views and deck.gl
+layers in R with <code><a href="../reference/mosaic_gl.html">mosaic_gl()</a></code>.</li>
 </ul>
-</div>
 <div class="section level3">
 <h3 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h3>
@@ -122,14 +107,36 @@ interface to Mosaic for interactive linked views</li>
 </ul>
 </div>
 <div class="section level3">
+<h3 id="web-app-or-r">Web app or R?<a class="anchor" aria-label="anchor" href="#web-app-or-r"></a>
+</h3>
+<p>The same workspace runs in two places.</p>
+<ul>
+<li>
+<strong>The web app</strong> at <a href="https://dbvisuals.pages.dev" class="external-link uri">https://dbvisuals.pages.dev</a> runs entirely in your
+browser on DuckDB-WASM. Open DuckDB, CSV, TSV, Parquet, JSON or Arrow
+files from your computer; they are read in the browser and never
+uploaded. Nothing needs to be installed, and the data you can explore is
+limited by the browser’s memory.</li>
+<li>
+<strong><code><a href="../reference/launchBrowser.html">launchBrowser()</a></code> in R</strong> serves the
+workspace from your own machine. Called with no database, it works like
+the web app. Called with <code>db_path</code> (or an open DuckDB
+connection), a background R process runs native DuckDB on that database
+file and the workspace queries it there, so you can explore databases
+larger than the browser could hold. The local server listens only on
+<code>127.0.0.1</code> and uses a per-session token.</li>
+</ul>
+<p>Either way, files you open in the browser stay in the browser; they
+are not copied into your R session.</p>
+</div>
+<div class="section level3">
 <h3 id="quick-start">Quick Start<a class="anchor" aria-label="anchor" href="#quick-start"></a>
 </h3>
 <div class="section level4">
 <h4 id="launch-with-in-memory-database">Launch with In-Memory Database<a class="anchor" aria-label="anchor" href="#launch-with-in-memory-database"></a>
 </h4>
-<p>Without a native database file, the workspace uses browser-local
-DuckDB-WASM and the bundled demonstration tables. Imported files stay in
-the browser and are not synchronized back into the R session.</p>
+<p>Without a database file, the workspace runs on DuckDB-WASM in the
+browser, with the bundled demonstration tables.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/dbverse-org/dbVisuals" class="external-link">dbVisuals</a></span><span class="op">)</span></span>
 <span></span>
@@ -139,8 +146,7 @@ the browser and are not synchronized back into the R session.</p>
 <div class="section level4">
 <h4 id="launch-with-giottodb-database">Launch with GiottoDB Database<a class="anchor" aria-label="anchor" href="#launch-with-giottodb-database"></a>
 </h4>
-<p>For spatial data analysis, connect to a GiottoDB database from
-(Giotto Suite)[<a href="https://giottosuite.com" class="external-link uri">https://giottosuite.com</a>]</p>
+<p>For spatial data analysis, connect to a GiottoDB database from <a href="https://giottosuite.com" class="external-link">Giotto Suite</a>.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/dbverse-org/dbVisuals" class="external-link">dbVisuals</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">GiottoDB</span><span class="op">)</span></span>
@@ -154,9 +160,11 @@ the browser and are not synchronized back into the R session.</p>
 <span><span class="fu">dbDisconnect</span><span class="op">(</span><span class="va">con</span>, shutdown <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Launch dbVisuals</span></span>
-<span><span class="va">dashboard</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span>db_path <span class="op">=</span> <span class="st">"my_spatial_data.duckdb"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Explore your spatial data with SQL queries and visualizations</span></span></code></pre></div>
+<span><span class="va">dashboard</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span>db_path <span class="op">=</span> <span class="st">"my_spatial_data.duckdb"</span><span class="op">)</span></span></code></pre></div>
+<p>Close every connection that writes to a database before opening it
+with <code><a href="../reference/launchBrowser.html">launchBrowser()</a></code>. To change the database from R, stop
+the workspace first, make your changes, close the connection and launch
+again.</p>
 </div>
 <div class="section level4">
 <h4 id="cleanup">Cleanup<a class="anchor" aria-label="anchor" href="#cleanup"></a>
@@ -167,96 +175,25 @@ the browser and are not synchronized back into the R session.</p>
 </div>
 </div>
 <div class="section level3">
-<h3 id="what-you-can-do-in-dbvisuals">What You Can Do in dbVisuals<a class="anchor" aria-label="anchor" href="#what-you-can-do-in-dbvisuals"></a>
+<h3 id="ports-and-running-two-databases">Ports and running two databases<a class="anchor" aria-label="anchor" href="#ports-and-running-two-databases"></a>
 </h3>
-<div class="section level4">
-<h4 id="sql-queries-on-spatial-data">1. SQL Queries on Spatial Data<a class="anchor" aria-label="anchor" href="#sql-queries-on-spatial-data"></a>
-</h4>
-<p>Run SQL queries directly on your GiottoDB tables:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="co">-- Query your GiottoDB tables</span></span>
-<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> gdb_cell_rna_raw <span class="kw">LIMIT</span> <span class="dv">10</span>;</span>
-<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a></span>
-<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a><span class="co">-- Aggregate spatial expression data</span></span>
-<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a><span class="kw">SELECT</span> cell_ID, <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="kw">as</span> gene_count</span>
-<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a><span class="kw">FROM</span> gdb_cell_rna_normalized</span>
-<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a><span class="kw">GROUP</span> <span class="kw">BY</span> cell_ID;</span>
-<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a></span>
-<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a><span class="co">-- Spatial polygon queries</span></span>
-<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a><span class="kw">SELECT</span> poly_ID, ST_Area(geom) <span class="kw">as</span> area</span>
-<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a><span class="kw">FROM</span> gdb_poly_cell;</span></code></pre></div>
-</div>
-<div class="section level4">
-<h4 id="interactive-visualizations">2. Interactive Visualizations<a class="anchor" aria-label="anchor" href="#interactive-visualizations"></a>
-</h4>
-<p>Create deck.gl and Mosaic visualizations using the built-in tools in
-dbVisuals. Use Add Chart for Spatial Map and Table as well as ordinary
-Mosaic charts. For native R-backed data, prepare the database and close
-its writer connection before launching. Stop the workspace before
-modifying the file from R, then close the connection and relaunch.
-Concurrent cross-process writes are not promised.</p>
-</div>
-</div>
-<div class="section level3">
-<h3 id="advanced-configuration">Advanced Configuration<a class="anchor" aria-label="anchor" href="#advanced-configuration"></a>
-</h3>
-<div class="section level4">
-<h4 id="custom-ports">Custom Ports<a class="anchor" aria-label="anchor" href="#custom-ports"></a>
-</h4>
-<p>Specify custom ports if defaults are in use:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">dashboard</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span></span>
-<span>  db_path <span class="op">=</span> <span class="st">"my_data.duckdb"</span>,</span>
-<span>  port <span class="op">=</span> <span class="fl">3002</span>,           <span class="co"># R server port</span></span>
-<span>  frontend_port <span class="op">=</span> <span class="fl">5174</span>,  <span class="co"># Frontend port</span></span>
-<span>  browser <span class="op">=</span> <span class="cn">TRUE</span>         <span class="co"># Auto-open browser</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level4">
-<h4 id="one-instance-at-a-time">One instance at a time<a class="anchor" aria-label="anchor" href="#one-instance-at-a-time"></a>
-</h4>
-<p>The running server and front end are tracked in a single
-package-level slot, so launching a second workspace stops the first one
-even when the ports differ: after the second
-<code><a href="../reference/launchBrowser.html">launchBrowser()</a></code> below, port 5173 is no longer served and
-<code>stop_sqlrooms(dashboard1)</code> reports “No running SQL Rooms
-processes found”.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">dashboard1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span>db_path <span class="op">=</span> <span class="st">"project1.duckdb"</span>,</span>
-<span>                            port <span class="op">=</span> <span class="fl">3001</span>, frontend_port <span class="op">=</span> <span class="fl">5173</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># This replaces dashboard1 rather than running alongside it.</span></span>
-<span><span class="va">dashboard2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span>db_path <span class="op">=</span> <span class="st">"project2.duckdb"</span>,</span>
-<span>                            port <span class="op">=</span> <span class="fl">3002</span>, frontend_port <span class="op">=</span> <span class="fl">5174</span><span class="op">)</span></span></code></pre></div>
-<p>To work with two databases at once, run them from two separate R
-sessions.</p>
-</div>
-</div>
-<div class="section level3">
-<h3 id="troubleshooting">Troubleshooting<a class="anchor" aria-label="anchor" href="#troubleshooting"></a>
-</h3>
-<div class="section level4">
-<h4 id="ports-already-in-use">Ports Already in Use<a class="anchor" aria-label="anchor" href="#ports-already-in-use"></a>
-</h4>
-<p>If you see connection errors, try different ports:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span>port <span class="op">=</span> <span class="fl">3002</span>, frontend_port <span class="op">=</span> <span class="fl">5174</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level4">
-<h4 id="missing-dependencies">Missing Dependencies<a class="anchor" aria-label="anchor" href="#missing-dependencies"></a>
-</h4>
-<p>Install recommended packages for full functionality:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/install_dbvisuals_deps.html">install_dbvisuals_deps</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>Or manually:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"DBI"</span>, <span class="st">"duckdb"</span>, <span class="st">"shiny"</span>, <span class="st">"rDeckgl"</span>, <span class="st">"rMosaic"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-</div>
+<p>The workspace uses ports 3001 (R server) and 5173 (browser app). If
+either is in use, choose others:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dashboard</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span>db_path <span class="op">=</span> <span class="st">"my_data.duckdb"</span>,</span>
+<span>                           port <span class="op">=</span> <span class="fl">3002</span>, frontend_port <span class="op">=</span> <span class="fl">5174</span><span class="op">)</span></span></code></pre></div>
+<p>Only one workspace runs per R session: a second
+<code><a href="../reference/launchBrowser.html">launchBrowser()</a></code> replaces the first, even on different
+ports. To work with two databases at once, use two R sessions.</p>
 </div>
 <div class="section level3">
 <h3 id="next-steps">Next Steps<a class="anchor" aria-label="anchor" href="#next-steps"></a>
 </h3>
 <ul>
-<li>Reproduce the published figures and see every entry point:
+<li>Build linked views in R:
+<code><a href="../articles/visualization-examples.html">vignette("visualization-examples", package = "dbVisuals")</a></code>
+</li>
+<li>Reproduce the published figures:
 <code><a href="../articles/reproducing-paper-figures.html">vignette("reproducing-paper-figures", package = "dbVisuals")</a></code>
 </li>
 <li>Explore the function reference: <code><a href="../reference/launchBrowser.html">?launchBrowser</a></code>
@@ -279,7 +216,7 @@ Issues</a>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Edward C. Ruiz, Timur Rizvanov, National Human Genome Research Institute.</p>
+  <p>Developed by Edward C. Ruiz, Timur Rizvanov, Ruben Dries.</p>
 </div>
 
 <div class="pkgdown-footer-right">

@@ -7,7 +7,7 @@
 
 - **Timur Rizvanov**. Author.
 
-- **Ruben Dries**. Reviewer.
+- **Ruben Dries**. Author, reviewer.
 
 - **National Human Genome Research Institute**. Funder.  
   1R01HG014487-01
@@ -17,13 +17,13 @@
 Source:
 [`DESCRIPTION`](https://github.com/dbverse-org/dbVisuals/blob/main/DESCRIPTION)
 
-Ruiz E, Rizvanov T (2026). *dbVisuals: Database-Powered Visualizations
-for Spatial Data*. R package version 0.1.0,
+Ruiz E, Rizvanov T, Dries R (2026). *dbVisuals: Database-Powered
+Visualizations for Tabular Data*. R package version 0.1.0,
 <https://github.com/dbverse-org/dbVisuals>.
 
     @Manual{,
-      title = {dbVisuals: Database-Powered Visualizations for Spatial Data},
-      author = {Edward C. Ruiz and Timur Rizvanov},
+      title = {dbVisuals: Database-Powered Visualizations for Tabular Data},
+      author = {Edward C. Ruiz and Timur Rizvanov and Ruben Dries},
       year = {2026},
       note = {R package version 0.1.0},
       url = {https://github.com/dbverse-org/dbVisuals},

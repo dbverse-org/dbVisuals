@@ -5,15 +5,15 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>dbVisuals: Database-Powered Visualizations for Spatial Data • dbVisuals</title>
+<title>dbVisuals: Database-Powered Visualizations for Tabular Data • dbVisuals</title>
 <script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
-<script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="dbVisuals: Database-Powered Visualizations for Spatial Data">
-<meta name="description" content="A local SQLRooms workspace and an R htmlwidget for linked, database-backed visualizations of dbverse and DuckDB data.
+<script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="dbVisuals: Database-Powered Visualizations for Tabular Data">
+<meta name="description" content="A browser workspace and an R htmlwidget for linked, database-backed visualizations of DuckDB, dbverse and other tabular data.
 ">
-<meta property="og:description" content="A local SQLRooms workspace and an R htmlwidget for linked, database-backed visualizations of dbverse and DuckDB data.
+<meta property="og:description" content="A browser workspace and an R htmlwidget for linked, database-backed visualizations of DuckDB, dbverse and other tabular data.
 ">
 </head>
 <body>
@@ -48,6 +48,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json">
 </form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://dbvisuals.pages.dev/" aria-label="Open the dbVisuals web app"><span class="fa fa-arrow-up-right-from-square"></span> Web App</a></li>
 <li class="nav-item"><a class="external-link nav-link" href="https://github.com/dbverse-org/dbVisuals" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
@@ -59,7 +60,7 @@
   <main id="main" class="col-md-9"><div class="section level1">
 <div class="page-header"><h1 id="dbvisuals">dbVisuals<a class="anchor" aria-label="anchor" href="#dbvisuals"></a>
 </h1></div>
-<p>dbVisuals builds linked, database-backed visualizations of spatial data in R. It has two entry points:</p>
+<p>dbVisuals builds linked, interactive visualizations of tabular and database-backed data in R, from DuckDB databases and data files, including spatial data. It has two entry points:</p>
 <ul>
 <li>
 <strong>A browser workspace</strong>, started with <code><a href="reference/launchBrowser.html">launchBrowser()</a></code>, where you import data, add maps, tables and charts, and link them without writing code. You can also try it online at <a href="https://dbvisuals.pages.dev" class="external-link uri">https://dbvisuals.pages.dev</a>.</li>
@@ -130,7 +131,7 @@
 <ul class="list-unstyled">
 <li>Edward C. Ruiz <br><small class="roles"> Author, maintainer </small> <a href="https://orcid.org/0000-0002-9174-5387" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
 <li>Timur Rizvanov <br><small class="roles"> Author </small>   </li>
-<li>National Human Genome Research Institute <br><small class="roles"> Funder </small>   </li>
+<li>Ruben Dries <br><small class="roles"> Author, reviewer </small>   </li>
 <li><a href="authors.html">More about authors...</a></li>
 </ul>
 </div>
@@ -142,7 +143,7 @@
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Edward C. Ruiz, Timur Rizvanov, National Human Genome Research Institute.</p>
+  <p>Developed by Edward C. Ruiz, Timur Rizvanov, Ruben Dries.</p>
 </div>
 
 <div class="pkgdown-footer-right">

@@ -1,7 +1,8 @@
 # dbVisuals
 
-dbVisuals builds linked, database-backed visualizations of spatial data
-in R. It has two entry points:
+dbVisuals builds linked, interactive visualizations of tabular and
+database-backed data in R, from DuckDB databases and data files,
+including spatial data. It has two entry points:
 
 - **A browser workspace**, started with
   [`launchBrowser()`](https://dbverse-org.github.io/dbVisuals/reference/launchBrowser.md),

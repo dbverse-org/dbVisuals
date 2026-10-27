@@ -44,6 +44,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
 </form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://dbvisuals.pages.dev/" aria-label="Open the dbVisuals web app"><span class="fa fa-arrow-up-right-from-square"></span> Web App</a></li>
 <li class="nav-item"><a class="external-link nav-link" href="https://github.com/dbverse-org/dbVisuals" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
@@ -67,205 +68,36 @@
 
     
     
-<p>This vignette covers the two things people ask for first: how to
-reproduce the visualizations published in the dbVisuals Application
-Note, and how to start each of the package’s entry points.</p>
+<p>This vignette shows how to reproduce the visualizations published in
+the dbVisuals Application Note. For a general introduction, see
+<code><a href="../articles/getting-started.html">vignette("getting-started", package = "dbVisuals")</a></code>.</p>
 <div class="section level2">
 <h2 id="install">Install<a class="anchor" aria-label="anchor" href="#install"></a>
 </h2>
-<p>The rendering packages and database dependencies come from CRAN.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"DBI"</span>, <span class="st">"duckdb"</span>, <span class="st">"rDeckgl"</span>, <span class="st">"rMosaic"</span><span class="op">)</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># or let the package do it</span></span>
-<span><span class="fu">dbVisuals</span><span class="fu">::</span><span class="fu"><a href="../reference/install_dbvisuals_deps.html">install_dbvisuals_deps</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>Install <code>dbVisuals</code> from CRAN, or the development version
-from the dbverse r-universe:</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"dbVisuals"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># development version</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"dbVisuals"</span>,</span>
 <span>                 repos <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"https://dbverse-org.r-universe.dev"</span>,</span>
-<span>                           <span class="st">"https://cloud.r-project.org"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<span>                           <span class="st">"https://cloud.r-project.org"</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># rendering packages and database dependencies, from CRAN</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"DBI"</span>, <span class="st">"duckdb"</span>, <span class="st">"rDeckgl"</span>, <span class="st">"rMosaic"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>The figures and benchmarks in the Application Note were made with
 <code>dbVisuals</code> 0.1.0 (commit <code>7f6eb52</code> of <a href="https://github.com/dbverse-org/dbVisuals" class="external-link uri">https://github.com/dbverse-org/dbVisuals</a>).</p>
-</div>
-<div class="section level2">
-<h2 id="entry-point-1-the-sqlrooms-browser-workspace">Entry point 1 — the SQLRooms browser workspace<a class="anchor" aria-label="anchor" href="#entry-point-1-the-sqlrooms-browser-workspace"></a>
-</h2>
-<p><code><a href="../reference/launchBrowser.html">launchBrowser()</a></code> starts a local server plus the packaged
-front end and opens a browser. Point it at a closed DuckDB file for
-authenticated native queries, or omit <code>db_path</code> for
-standalone DuckDB-WASM with the bundled demonstration tables. Files
-imported in standalone mode stay in the browser, not in the R
-session.</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/dbverse-org/dbVisuals" class="external-link">dbVisuals</a></span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># standalone browser workspace</span></span>
-<span><span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># an existing DuckDB / GiottoDB file</span></span>
-<span><span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span>db_path <span class="op">=</span> <span class="st">"WTA_Preview_FFPE_Breast_Cancer_xenium.duckdb"</span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="../reference/stop_sqlrooms.html">stop_sqlrooms</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-<p>The frontend and, when needed, the native API run in background
-processes, so the R session stays usable; <code>daemon</code> is
-retained for compatibility. Ports default to 3001 (server) and 5173
-(front end). Only one workspace runs at a time — a second
-<code><a href="../reference/launchBrowser.html">launchBrowser()</a></code> replaces the first even on different ports
-— so use two R sessions if you need two databases side by side.</p>
-<p>Prepare and close a native database before launching. To change it
-from R, stop the workspace, modify the file, close the writer and
-relaunch. DuckDB’s cross-process file locks do not guarantee concurrent
-live writes.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">db</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">"workspace.duckdb"</span><span class="op">)</span></span>
-<span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">duckdb</span><span class="fu">::</span><span class="fu">duckdb</span><span class="op">(</span><span class="op">)</span>, <span class="va">db</span><span class="op">)</span></span>
-<span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbWriteTable.html" class="external-link">dbWriteTable</a></span><span class="op">(</span><span class="va">con</span>, <span class="st">"gdb_cell_metadata"</span>,</span>
-<span>                  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">200</span><span class="op">)</span>, y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">200</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbDisconnect.html" class="external-link">dbDisconnect</a></span><span class="op">(</span><span class="va">con</span>, shutdown <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span>db_path <span class="op">=</span> <span class="va">db</span>, browser <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="../reference/stop_sqlrooms.html">stop_sqlrooms</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level2">
-<h2 id="entry-point-2-r-side-linked-views-with-mosaic_gl">Entry point 2 — R-side linked views with
-<code>mosaic_gl()</code><a class="anchor" aria-label="anchor" href="#entry-point-2-r-side-linked-views-with-mosaic_gl"></a>
-</h2>
-<p><code><a href="../reference/mosaic_gl.html">mosaic_gl()</a></code> is an htmlwidget: Mosaic views and GPU
-deck.gl layers in one browser scope, over a single DuckDB-WASM
-coordinator and a single shared selection, so brushing any panel filters
-all of them. No server, no browser workspace — it renders in the RStudio
-viewer, a knitted document, or Shiny.</p>
-<p>A self-contained example that needs no database:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/dbverse-org/dbVisuals" class="external-link">dbVisuals</a></span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">pts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">5000</span><span class="op">)</span>, y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">5000</span><span class="op">)</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">spec</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mgl_spec.html">mgl_spec</a></span><span class="op">(</span></span>
-<span>  data   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>pts <span class="op">=</span> <span class="fu"><a href="../reference/mgl_data.html">mgl_data</a></span><span class="op">(</span>type <span class="op">=</span> <span class="st">"table"</span>, df <span class="op">=</span> <span class="va">pts</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>sel <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>select <span class="op">=</span> <span class="st">"crossfilter"</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  vconcat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>      plot <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>        <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>mark <span class="op">=</span> <span class="st">"dot"</span>, data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>from <span class="op">=</span> <span class="st">"pts"</span>, filterBy <span class="op">=</span> <span class="st">"$sel"</span><span class="op">)</span>,</span>
-<span>             x <span class="op">=</span> <span class="st">"x"</span>, y <span class="op">=</span> <span class="st">"y"</span><span class="op">)</span>,</span>
-<span>        <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>select <span class="op">=</span> <span class="st">"intervalX"</span>, as <span class="op">=</span> <span class="st">"$sel"</span><span class="op">)</span></span>
-<span>      <span class="op">)</span>,</span>
-<span>      width <span class="op">=</span> <span class="fl">800</span>, height <span class="op">=</span> <span class="fl">160</span></span>
-<span>    <span class="op">)</span>,</span>
-<span>    <span class="fu"><a href="../reference/mgl_deckgl.html">mgl_deckgl</a></span><span class="op">(</span></span>
-<span>      id        <span class="op">=</span> <span class="st">"map"</span>,</span>
-<span>      filter_by <span class="op">=</span> <span class="st">"$sel"</span>,</span>
-<span>      width     <span class="op">=</span> <span class="fl">800</span>, height <span class="op">=</span> <span class="fl">460</span>,</span>
-<span>      layers <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>        `@@type`         <span class="op">=</span> <span class="st">"ScatterplotLayer"</span>,</span>
-<span>        id               <span class="op">=</span> <span class="st">"pts"</span>,</span>
-<span>        data             <span class="op">=</span> <span class="st">"pts"</span>,</span>
-<span>        getPosition      <span class="op">=</span> <span class="st">"@@=[x, y]"</span>,</span>
-<span>        getFillColor     <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">100L</span>, <span class="fl">180L</span>, <span class="fl">255L</span>, <span class="fl">220L</span><span class="op">)</span>,</span>
-<span>        getRadius        <span class="op">=</span> <span class="fl">3</span>,</span>
-<span>        radiusUnits      <span class="op">=</span> <span class="st">"pixels"</span>,</span>
-<span>        coordinateSystem <span class="op">=</span> <span class="st">"@@#COORDINATE_SYSTEM.CARTESIAN"</span>,</span>
-<span>        positionFormat   <span class="op">=</span> <span class="st">"XY"</span></span>
-<span>      <span class="op">)</span><span class="op">)</span></span>
-<span>    <span class="op">)</span></span>
-<span>  <span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="../reference/mosaic_gl.html">mosaic_gl</a></span><span class="op">(</span><span class="va">spec</span><span class="op">)</span></span></code></pre></div>
-<p>Data reaches the browser as Arrow IPC, not JSON.
-<code>mgl_data(type = "table")</code> serializes a data frame;
-<code>mgl_data(type = "duckdb", query = ...)</code> keeps the data in
-the database and ships only the query result, which is what you want for
-anything large:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu"><a href="https://dbi.r-dbi.org/reference/dbConnect.html" class="external-link">dbConnect</a></span><span class="op">(</span><span class="fu">duckdb</span><span class="fu">::</span><span class="fu">duckdb</span><span class="op">(</span><span class="op">)</span>, <span class="st">"my.duckdb"</span>, read_only <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
-<span></span>
-<span><span class="va">spec</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mgl_spec.html">mgl_spec</a></span><span class="op">(</span></span>
-<span>  data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>    cells <span class="op">=</span> <span class="fu"><a href="../reference/mgl_data.html">mgl_data</a></span><span class="op">(</span></span>
-<span>      type  <span class="op">=</span> <span class="st">"duckdb"</span>,</span>
-<span>      query <span class="op">=</span> <span class="st">"SELECT x, y, leiden_clus FROM gdb_cell_metadata"</span></span>
-<span>    <span class="op">)</span>,</span>
-<span>    polys <span class="op">=</span> <span class="fu"><a href="../reference/mgl_data.html">mgl_data</a></span><span class="op">(</span></span>
-<span>      type   <span class="op">=</span> <span class="st">"duckdb"</span>,</span>
-<span>      <span class="co"># Include the key column: the WKB polygon encoder needs both a key</span></span>
-<span>      <span class="co"># (cell_ID / poly_ID / id) and a geometry column, otherwise it falls</span></span>
-<span>      <span class="co"># back to plain Arrow and the polygon layer is dropped at render time.</span></span>
-<span>      query  <span class="op">=</span> <span class="st">"SELECT cell_ID, ST_AsWKB(geom) AS geometry FROM gdb_cell_polygons"</span>,</span>
-<span>      format <span class="op">=</span> <span class="st">"geoarrow"</span></span>
-<span>    <span class="op">)</span></span>
-<span>  <span class="op">)</span>,</span>
-<span>  vconcat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>    <span class="fu"><a href="../reference/mgl_deckgl.html">mgl_deckgl</a></span><span class="op">(</span></span>
-<span>      id <span class="op">=</span> <span class="st">"insitu"</span>, width <span class="op">=</span> <span class="fl">800</span>, height <span class="op">=</span> <span class="fl">560</span>,</span>
-<span>      layers <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>        <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>          `@@type`         <span class="op">=</span> <span class="st">"GeoArrowPolygonLayer"</span>,</span>
-<span>          id               <span class="op">=</span> <span class="st">"polys"</span>,</span>
-<span>          data             <span class="op">=</span> <span class="st">"polys"</span>,</span>
-<span>          geometryColumn   <span class="op">=</span> <span class="st">"geometry"</span>,</span>
-<span>          getFillColor     <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">157L</span>, <span class="fl">78L</span>, <span class="fl">221L</span>, <span class="fl">90L</span><span class="op">)</span>,</span>
-<span>          stroked          <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>          coordinateSystem <span class="op">=</span> <span class="st">"@@#COORDINATE_SYSTEM.CARTESIAN"</span>,</span>
-<span>          positionFormat   <span class="op">=</span> <span class="st">"XY"</span></span>
-<span>        <span class="op">)</span>,</span>
-<span>        <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>          `@@type`         <span class="op">=</span> <span class="st">"ScatterplotLayer"</span>,</span>
-<span>          id               <span class="op">=</span> <span class="st">"cells"</span>,</span>
-<span>          data             <span class="op">=</span> <span class="st">"cells"</span>,</span>
-<span>          getPosition      <span class="op">=</span> <span class="st">"@@=[x, y]"</span>,</span>
-<span>          getFillColor     <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">30L</span>, <span class="fl">41L</span>, <span class="fl">59L</span>, <span class="fl">200L</span><span class="op">)</span>,</span>
-<span>          getRadius        <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>          radiusUnits      <span class="op">=</span> <span class="st">"pixels"</span>,</span>
-<span>          coordinateSystem <span class="op">=</span> <span class="st">"@@#COORDINATE_SYSTEM.CARTESIAN"</span>,</span>
-<span>          positionFormat   <span class="op">=</span> <span class="st">"XY"</span></span>
-<span>        <span class="op">)</span></span>
-<span>      <span class="op">)</span></span>
-<span>    <span class="op">)</span></span>
-<span>  <span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="../reference/mosaic_gl.html">mosaic_gl</a></span><span class="op">(</span><span class="va">spec</span>, con <span class="op">=</span> <span class="va">con</span><span class="op">)</span></span></code></pre></div>
-<p>Passing <code>con</code> also lets the widget issue follow-up queries
-against your R-side DuckDB while you interact, instead of materializing
-everything up front. Any spatial / nanoarrow / geoarrow extensions
-already loaded on that connection are reused.</p>
-<p>In Shiny use the pair <code><a href="../reference/mosaic_glOutput.html">mosaic_glOutput()</a></code> /
-<code><a href="../reference/renderMosaic_gl.html">renderMosaic_gl()</a></code>.</p>
-</div>
-<div class="section level2">
-<h2 id="entry-point-3-export-a-spec-back-out">Entry point 3 — export a spec back out<a class="anchor" aria-label="anchor" href="#entry-point-3-export-a-spec-back-out"></a>
-</h2>
-<p>Specs built in the browser workspace can be pulled back into R as an
-htmlwidget for <code>rMosaic</code> or <code>rDeckgl</code>:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/dbvisuals_export_htmlwidget.html">dbvisuals_export_htmlwidget</a></span><span class="op">(</span></span>
-<span>  <span class="va">spec</span>,</span>
-<span>  <span class="st">"panel.html"</span>,</span>
-<span>  engine <span class="op">=</span> <span class="st">"rMosaic"</span>,</span>
-<span>  data   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>pts <span class="op">=</span> <span class="va">pts</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="reproducing-the-published-figures">Reproducing the published figures<a class="anchor" aria-label="anchor" href="#reproducing-the-published-figures"></a>
 </h2>
 <p>The published in-situ panels need a GiottoDB DuckDB database holding
-cell polygons, cell centroids and transcript coordinates — the
+cell polygons, cell centroids and transcript coordinates. The
 Application Note uses the 10x Genomics Atera In Situ Gene Expression,
-FFPE Human Breast Cancer preview dataset on the Xenium platform.</p>
-<p>The spec patterns are documented in
-<code><a href="../articles/visualization-examples.html">vignette("visualization-examples", package = "dbVisuals")</a></code>.
-The two scripts below are in the repository under
-<code>r-package/examples/</code>. They are repository examples, not
-installed R help examples, and the large public input datasets are not
-bundled. Use the same release for the installed package and the cloned
-examples.</p>
+FFPE Human Breast Cancer preview dataset.</p>
+<p>The two scripts below are in the repository under
+<code>r-package/examples/</code>. They are not installed with the
+package, and the large public input datasets are not bundled. Use the
+same release for the installed package and the cloned scripts.</p>
 <table class="table">
 <colgroup>
 <col width="50%">
@@ -284,55 +116,41 @@ bar</td>
 <tr class="even">
 <td><code>06_in_situ_zoom_overlay_transcripts_interactive.R</code></td>
 <td>
-<strong>the published panel</strong> — interactive ROI
+<strong>the published panel</strong>, with interactive ROI
 selection</td>
 </tr>
 </tbody>
 </table>
-<p><code>03_dimred_concat.R</code> needs the separately installed
-<code>Giotto</code> and <code>GiottoData</code> packages and downloads
-the mini Visium object. Install these using the Giotto Suite
-installation instructions before sourcing it. It needs no local
-database.</p>
-<p>These scripts are not installed with the package, so run them from a
-clone of the repository with <code>r-package/</code> as the working
-directory:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">git</span> clone <span class="at">--branch</span> v0.1.0 https://github.com/dbverse-org/dbVisuals.git</span></code></pre></div>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<p>Run them from a clone of the repository, with <code>r-package/</code>
+as the working directory:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">git</span> clone <span class="at">--branch</span> v0.1.0 https://github.com/dbverse-org/dbVisuals.git</span></code></pre></div>
+<p><code>03_dimred_concat.R</code> needs the <code>Giotto</code> and
+<code>GiottoData</code> packages (see the Giotto Suite installation
+instructions) and downloads the mini Visium object. It needs no local
+database:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/getwd.html" class="external-link">setwd</a></span><span class="op">(</span><span class="st">"path/to/dbVisuals/r-package"</span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/source.html" class="external-link">source</a></span><span class="op">(</span><span class="st">"examples/03_dimred_concat.R"</span><span class="op">)</span></span></code></pre></div>
-<p>For the in-situ scripts, point the environment at your data and run
-them from an interactive session:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<p>For the in-situ script, point the environment at your data and run it
+from an interactive R session:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/getwd.html" class="external-link">setwd</a></span><span class="op">(</span><span class="st">"path/to/dbVisuals/r-package"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Sys.setenv.html" class="external-link">Sys.setenv</a></span><span class="op">(</span>DBLENS_DEMO_DB <span class="op">=</span> <span class="st">"/path/to/WTA_Preview_FFPE_Breast_Cancer_xenium.duckdb"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Sys.setenv.html" class="external-link">Sys.setenv</a></span><span class="op">(</span>DBLENS_TRANSCRIPT_FILE <span class="op">=</span> <span class="st">"/path/to/transcripts.parquet"</span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/source.html" class="external-link">source</a></span><span class="op">(</span><span class="st">"examples/06_in_situ_zoom_overlay_transcripts_interactive.R"</span><span class="op">)</span></span></code></pre></div>
-<p>Neither variable is required to be set if the files sit in the
-working directory under their default names. Optional overrides:
-<code>DBLENS_TRANSCRIPT_TABLE</code> to read transcripts from a table
+<p>Neither variable is needed if the files sit in the working directory
+under their default names. Optional overrides:
+<code>DBLENS_TRANSCRIPT_TABLE</code> reads transcripts from a table
 inside the database instead of a file, and
-<code>DBLENS_ROI_CELL_ID</code> to centre the region of interest on a
+<code>DBLENS_ROI_CELL_ID</code> centres the region of interest on a
 specific cell.</p>
-<p>Script 06 starts a Shiny app where dragging the <code>select</code>
-control re-queries just the transcripts inside the chosen region, and
-<code>detail</code> picks the nested sub-region. Run it from an
-interactive R session — under <code>Rscript</code> it prints the widget
-instead of launching Shiny. The published panel is a full-window capture
-of the resulting three-view layout. Missing expression or cell-type
-annotations are displayed as unavailable, not replaced with simulated
-measurements. The panel demonstrates spatial navigation, not a new
-biological clustering result.</p>
-</div>
-<div class="section level2">
-<h2 id="rebuilding-the-widget-bundle">Rebuilding the widget bundle<a class="anchor" aria-label="anchor" href="#rebuilding-the-widget-bundle"></a>
-</h2>
-<p>The pre-built browser bundle ships in <code>inst/htmlwidgets/</code>,
-so none of the above needs <code>npm</code>. To rebuild it from
-source:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="bu">cd</span> inst/viewer-src</span>
-<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a><span class="ex">npm</span> ci</span>
-<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="ex">npm</span> run build</span></code></pre></div>
+<p>Script 06 starts a Shiny app: dragging the <code>select</code>
+control re-queries only the transcripts inside the chosen region, and
+<code>detail</code> picks a nested sub-region. Under
+<code>Rscript</code> it prints the widget instead of launching Shiny.
+The published panel is a full-window capture of the resulting three-view
+layout. Missing expression or cell-type annotations are shown as
+unavailable, not simulated.</p>
 </div>
 <div class="section level2">
 <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a>
@@ -340,11 +158,6 @@ source:</p>
 <p><code><a href="../articles/visualization-examples.html">vignette("visualization-examples", package = "dbVisuals")</a></code>
 builds the same linked-view patterns from self-contained data, with no
 database required.</p>
-<p>Versions of deck.gl, Mosaic, GeoArrow and Arrow are held to one
-contract across this package and the front end; see
-<code>versions.json</code> at the repository root. From that root, run
-<code>npm --prefix frontend/sqlrooms-ai run test:versions</code> to
-check the contract.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
@@ -353,7 +166,7 @@ check the contract.</p>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Edward C. Ruiz, Timur Rizvanov, National Human Genome Research Institute.</p>
+  <p>Developed by Edward C. Ruiz, Timur Rizvanov, Ruben Dries.</p>
 </div>
 
 <div class="pkgdown-footer-right">

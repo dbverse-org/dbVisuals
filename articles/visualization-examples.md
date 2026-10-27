@@ -6,8 +6,8 @@ single DuckDB-WASM coordinator and a single shared selection, so a brush
 in any panel filters every other panel.
 
 Each example below is self-contained: it builds its own data, so you can
-paste it straight into the console. The final chunk shows the same
-patterns against a real spatial database.
+paste it straight into the console. The last example keeps its data in a
+DuckDB database and draws polygons.
 
 ``` r
 
@@ -31,11 +31,9 @@ additions:
 selection; panels write to it with a `select` clause and read from it
 with `filterBy`.
 
-One caveat when several widgets share a page, as they do in this
-vignette: every widget registers its tables into the same DuckDB-WASM
-instance, so a name reused by a later widget silently replaces the
-earlier one. That is why the examples below use distinct names –
-`cells1`, `cells2`, `dimred`, `cells4`.
+If you show several widgets on one page, give their tables different
+names: they share one DuckDB-WASM instance, so a reused name replaces
+the earlier table.
 
 ## 1. Cross-filtered scatter with a marginal histogram
 
@@ -102,65 +100,7 @@ conventions worth remembering: `@@=` marks a JavaScript accessor
 expression and `@@#` marks a deck.gl constant. Cartesian is what you
 want for tissue coordinates — the default is geographic.
 
-## 2. Two-sided marginals and a selection-driven table
-
-Adding a second brush on the other axis, and a table that lists whatever
-is currently selected. Both marginals and the table share the same
-`$sel`.
-
-``` r
-
-spec2 <- mgl_spec(
-  meta   = list(title = "Two-sided marginals + table"),
-  data   = list(cells2 = mgl_data(type = "table", df = cells)),
-  params = list(sel = list(select = "crossfilter")),
-  vconcat = list(
-    list(
-      plot = list(
-        list(mark = "rectY", data = list(from = "cells2", filterBy = "$sel"),
-             x = list(bin = "x"), y = list(count = NULL), fill = "#60a5fa"),
-        list(select = "intervalX", as = "$sel",
-             brush = list(stroke = "currentColor", fill = "transparent"))
-      ),
-      width = 560, height = 90, yAxis = NULL, marginLeft = 40, marginBottom = 18
-    ),
-    list(hconcat = list(
-      mgl_deckgl(
-        id = "spatial", filter_by = "$sel", width = 460, height = 380,
-        layers = list(list(
-          `@@type`         = "ScatterplotLayer",
-          id               = "pts",
-          data             = "cells2",
-          getPosition      = "@@=[x, y]",
-          getFillColor     = c(100L, 180L, 255L, 220L),
-          getRadius        = 2,
-          radiusUnits      = "pixels",
-          coordinateSystem = "@@#COORDINATE_SYSTEM.CARTESIAN",
-          positionFormat   = "XY"
-        ))
-      ),
-      list(
-        plot = list(
-          list(mark = "rectX", data = list(from = "cells2", filterBy = "$sel"),
-               x = list(count = NULL), y = list(bin = "y"), fill = "#34d399"),
-          list(select = "intervalY", as = "$sel",
-               brush = list(stroke = "currentColor", fill = "transparent"))
-        ),
-        width = 100, height = 380, xAxis = NULL, marginBottom = 18
-      )
-    )),
-    list(
-      input = "table", from = "cells2", filterBy = "$sel",
-      columns = c("cell_ID", "x", "y", "total_expr"),
-      width = 560, height = 200
-    )
-  )
-)
-
-mosaic_gl(spec2, width = "100%", height = 720)
-```
-
-## 3. Dimension-reduction pairs linked to a categorical bar
+## 2. Dimension-reduction pairs linked to a categorical bar
 
 `mgl_deckgl(concat = ...)` lays out several panes that share one layer
 definition, each pane binding different columns to `x` and `y`. Toggling
@@ -220,7 +160,7 @@ spec3 <- mgl_spec(
 mosaic_gl(spec3, width = "100%", height = 620)
 ```
 
-## 4. Keeping data in DuckDB, and drawing polygons
+## 3. Keeping data in DuckDB, and drawing polygons
 
 The examples above ship their data frames to the browser. For anything
 large, leave the data in DuckDB and send only the query:
@@ -327,5 +267,7 @@ shiny::shinyApp(ui, server)
 
 ## See also
 
+[`vignette("getting-started", package = "dbVisuals")`](https://dbverse-org.github.io/dbVisuals/articles/getting-started.md)
+for the browser workspace, and
 [`vignette("reproducing-paper-figures", package = "dbVisuals")`](https://dbverse-org.github.io/dbVisuals/articles/reproducing-paper-figures.md)
-for the published figures and the other entry points.
+for the published figures.

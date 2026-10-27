@@ -44,6 +44,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
 </form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://dbvisuals.pages.dev/" aria-label="Open the dbVisuals web app"><span class="fa fa-arrow-up-right-from-square"></span> Web App</a></li>
 <li class="nav-item"><a class="external-link nav-link" href="https://github.com/dbverse-org/dbVisuals" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
@@ -71,8 +72,8 @@
 one browser scope over a single DuckDB-WASM coordinator and a single
 shared selection, so a brush in any panel filters every other panel.</p>
 <p>Each example below is self-contained: it builds its own data, so you
-can paste it straight into the console. The final chunk shows the same
-patterns against a real spatial database.</p>
+can paste it straight into the console. The last example keeps its data
+in a DuckDB database and draws polygons.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/dbverse-org/dbVisuals" class="external-link">dbVisuals</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">1</span><span class="op">)</span></span></code></pre></div>
@@ -95,12 +96,9 @@ around it.</li>
 creates the shared selection; panels write to it with a
 <code>select</code> clause and read from it with
 <code>filterBy</code>.</p>
-<p>One caveat when several widgets share a page, as they do in this
-vignette: every widget registers its tables into the same DuckDB-WASM
-instance, so a name reused by a later widget silently replaces the
-earlier one. That is why the examples below use distinct names –
-<code>cells1</code>, <code>cells2</code>, <code>dimred</code>,
-<code>cells4</code>.</p>
+<p>If you show several widgets on one page, give their tables different
+names: they share one DuckDB-WASM instance, so a reused name replaces
+the earlier table.</p>
 </div>
 <div class="section level2">
 <h2 id="cross-filtered-scatter-with-a-marginal-histogram">1. Cross-filtered scatter with a marginal histogram<a class="anchor" aria-label="anchor" href="#cross-filtered-scatter-with-a-marginal-histogram"></a>
@@ -166,69 +164,13 @@ Cartesian is what you want for tissue coordinates — the default is
 geographic.</p>
 </div>
 <div class="section level2">
-<h2 id="two-sided-marginals-and-a-selection-driven-table">2. Two-sided marginals and a selection-driven table<a class="anchor" aria-label="anchor" href="#two-sided-marginals-and-a-selection-driven-table"></a>
-</h2>
-<p>Adding a second brush on the other axis, and a table that lists
-whatever is currently selected. Both marginals and the table share the
-same <code>$sel</code>.</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">spec2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mgl_spec.html">mgl_spec</a></span><span class="op">(</span></span>
-<span>  meta   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>title <span class="op">=</span> <span class="st">"Two-sided marginals + table"</span><span class="op">)</span>,</span>
-<span>  data   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>cells2 <span class="op">=</span> <span class="fu"><a href="../reference/mgl_data.html">mgl_data</a></span><span class="op">(</span>type <span class="op">=</span> <span class="st">"table"</span>, df <span class="op">=</span> <span class="va">cells</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>sel <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>select <span class="op">=</span> <span class="st">"crossfilter"</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  vconcat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>      plot <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>        <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>mark <span class="op">=</span> <span class="st">"rectY"</span>, data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>from <span class="op">=</span> <span class="st">"cells2"</span>, filterBy <span class="op">=</span> <span class="st">"$sel"</span><span class="op">)</span>,</span>
-<span>             x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>bin <span class="op">=</span> <span class="st">"x"</span><span class="op">)</span>, y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>count <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span>, fill <span class="op">=</span> <span class="st">"#60a5fa"</span><span class="op">)</span>,</span>
-<span>        <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>select <span class="op">=</span> <span class="st">"intervalX"</span>, as <span class="op">=</span> <span class="st">"$sel"</span>,</span>
-<span>             brush <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>stroke <span class="op">=</span> <span class="st">"currentColor"</span>, fill <span class="op">=</span> <span class="st">"transparent"</span><span class="op">)</span><span class="op">)</span></span>
-<span>      <span class="op">)</span>,</span>
-<span>      width <span class="op">=</span> <span class="fl">560</span>, height <span class="op">=</span> <span class="fl">90</span>, yAxis <span class="op">=</span> <span class="cn">NULL</span>, marginLeft <span class="op">=</span> <span class="fl">40</span>, marginBottom <span class="op">=</span> <span class="fl">18</span></span>
-<span>    <span class="op">)</span>,</span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>hconcat <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>      <span class="fu"><a href="../reference/mgl_deckgl.html">mgl_deckgl</a></span><span class="op">(</span></span>
-<span>        id <span class="op">=</span> <span class="st">"spatial"</span>, filter_by <span class="op">=</span> <span class="st">"$sel"</span>, width <span class="op">=</span> <span class="fl">460</span>, height <span class="op">=</span> <span class="fl">380</span>,</span>
-<span>        layers <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>          `@@type`         <span class="op">=</span> <span class="st">"ScatterplotLayer"</span>,</span>
-<span>          id               <span class="op">=</span> <span class="st">"pts"</span>,</span>
-<span>          data             <span class="op">=</span> <span class="st">"cells2"</span>,</span>
-<span>          getPosition      <span class="op">=</span> <span class="st">"@@=[x, y]"</span>,</span>
-<span>          getFillColor     <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">100L</span>, <span class="fl">180L</span>, <span class="fl">255L</span>, <span class="fl">220L</span><span class="op">)</span>,</span>
-<span>          getRadius        <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>          radiusUnits      <span class="op">=</span> <span class="st">"pixels"</span>,</span>
-<span>          coordinateSystem <span class="op">=</span> <span class="st">"@@#COORDINATE_SYSTEM.CARTESIAN"</span>,</span>
-<span>          positionFormat   <span class="op">=</span> <span class="st">"XY"</span></span>
-<span>        <span class="op">)</span><span class="op">)</span></span>
-<span>      <span class="op">)</span>,</span>
-<span>      <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>        plot <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>          <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>mark <span class="op">=</span> <span class="st">"rectX"</span>, data <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>from <span class="op">=</span> <span class="st">"cells2"</span>, filterBy <span class="op">=</span> <span class="st">"$sel"</span><span class="op">)</span>,</span>
-<span>               x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>count <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span>, y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>bin <span class="op">=</span> <span class="st">"y"</span><span class="op">)</span>, fill <span class="op">=</span> <span class="st">"#34d399"</span><span class="op">)</span>,</span>
-<span>          <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>select <span class="op">=</span> <span class="st">"intervalY"</span>, as <span class="op">=</span> <span class="st">"$sel"</span>,</span>
-<span>               brush <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>stroke <span class="op">=</span> <span class="st">"currentColor"</span>, fill <span class="op">=</span> <span class="st">"transparent"</span><span class="op">)</span><span class="op">)</span></span>
-<span>        <span class="op">)</span>,</span>
-<span>        width <span class="op">=</span> <span class="fl">100</span>, height <span class="op">=</span> <span class="fl">380</span>, xAxis <span class="op">=</span> <span class="cn">NULL</span>, marginBottom <span class="op">=</span> <span class="fl">18</span></span>
-<span>      <span class="op">)</span></span>
-<span>    <span class="op">)</span><span class="op">)</span>,</span>
-<span>    <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>      input <span class="op">=</span> <span class="st">"table"</span>, from <span class="op">=</span> <span class="st">"cells2"</span>, filterBy <span class="op">=</span> <span class="st">"$sel"</span>,</span>
-<span>      columns <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"cell_ID"</span>, <span class="st">"x"</span>, <span class="st">"y"</span>, <span class="st">"total_expr"</span><span class="op">)</span>,</span>
-<span>      width <span class="op">=</span> <span class="fl">560</span>, height <span class="op">=</span> <span class="fl">200</span></span>
-<span>    <span class="op">)</span></span>
-<span>  <span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="../reference/mosaic_gl.html">mosaic_gl</a></span><span class="op">(</span><span class="va">spec2</span>, width <span class="op">=</span> <span class="st">"100%"</span>, height <span class="op">=</span> <span class="fl">720</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level2">
-<h2 id="dimension-reduction-pairs-linked-to-a-categorical-bar">3. Dimension-reduction pairs linked to a categorical bar<a class="anchor" aria-label="anchor" href="#dimension-reduction-pairs-linked-to-a-categorical-bar"></a>
+<h2 id="dimension-reduction-pairs-linked-to-a-categorical-bar">2. Dimension-reduction pairs linked to a categorical bar<a class="anchor" aria-label="anchor" href="#dimension-reduction-pairs-linked-to-a-categorical-bar"></a>
 </h2>
 <p><code>mgl_deckgl(concat = ...)</code> lays out several panes that
 share one layer definition, each pane binding different columns to
 <code>x</code> and <code>y</code>. Toggling a bar in the Mosaic bar
 chart filters every pane at once.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dimred</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  cell_ID     <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"cell_%04d"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">2000</span><span class="op">)</span>,</span>
 <span>  leiden_clus <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"c%02d"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">8</span><span class="op">)</span>, <span class="fl">2000</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
@@ -281,14 +223,14 @@ chart filters every pane at once.</p>
 <span><span class="fu"><a href="../reference/mosaic_gl.html">mosaic_gl</a></span><span class="op">(</span><span class="va">spec3</span>, width <span class="op">=</span> <span class="st">"100%"</span>, height <span class="op">=</span> <span class="fl">620</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="keeping-data-in-duckdb-and-drawing-polygons">4. Keeping data in DuckDB, and drawing polygons<a class="anchor" aria-label="anchor" href="#keeping-data-in-duckdb-and-drawing-polygons"></a>
+<h2 id="keeping-data-in-duckdb-and-drawing-polygons">3. Keeping data in DuckDB, and drawing polygons<a class="anchor" aria-label="anchor" href="#keeping-data-in-duckdb-and-drawing-polygons"></a>
 </h2>
 <p>The examples above ship their data frames to the browser. For
 anything large, leave the data in DuckDB and send only the query:
 <code>mgl_data(type = "duckdb")</code> with a <code>con</code>. Polygons
 travel as GeoArrow rather than JSON, and are drawn with
 <code>GeoArrowPolygonLayer</code>.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># A small spatial database, so this example runs anywhere. Substitute your own</span></span>
 <span><span class="co"># file and table names for real work.</span></span>
 <span><span class="va">db</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">"cells.duckdb"</span><span class="op">)</span></span>
@@ -373,7 +315,7 @@ already loaded on that connection are reused.</p>
 <div class="section level2">
 <h2 id="in-shiny">In Shiny<a class="anchor" aria-label="anchor" href="#in-shiny"></a>
 </h2>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ui</span> <span class="op">&lt;-</span> <span class="fu">shiny</span><span class="fu">::</span><span class="fu">fluidPage</span><span class="op">(</span><span class="fu"><a href="../reference/mosaic_glOutput.html">mosaic_glOutput</a></span><span class="op">(</span><span class="st">"viewer"</span>, height <span class="op">=</span> <span class="st">"780px"</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">server</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">input</span>, <span class="va">output</span>, <span class="va">session</span><span class="op">)</span> <span class="op">{</span></span>
@@ -385,8 +327,10 @@ already loaded on that connection are reused.</p>
 <div class="section level2">
 <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a>
 </h2>
-<p><code><a href="../articles/reproducing-paper-figures.html">vignette("reproducing-paper-figures", package = "dbVisuals")</a></code>
-for the published figures and the other entry points.</p>
+<p><code><a href="../articles/getting-started.html">vignette("getting-started", package = "dbVisuals")</a></code> for
+the browser workspace, and
+<code><a href="../articles/reproducing-paper-figures.html">vignette("reproducing-paper-figures", package = "dbVisuals")</a></code>
+for the published figures.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
@@ -395,7 +339,7 @@ for the published figures and the other entry points.</p>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Edward C. Ruiz, Timur Rizvanov, National Human Genome Research Institute.</p>
+  <p>Developed by Edward C. Ruiz, Timur Rizvanov, Ruben Dries.</p>
 </div>
 
 <div class="pkgdown-footer-right">
