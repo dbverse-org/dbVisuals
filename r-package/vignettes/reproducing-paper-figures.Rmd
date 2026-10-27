@@ -21,7 +21,7 @@ dbVisuals Application Note. For a general introduction, see
 
 ## Install
 
-```{r}
+```{r, eval = FALSE}
 install.packages("dbVisuals")
 
 # development version
