@@ -3,8 +3,9 @@
 dbVisuals builds linked, database-backed visualizations of spatial data in R.
 It has two entry points:
 
-- **Canvas**, a browser workspace started with `launchBrowser()`, where you
-  import data, add maps, tables and charts, and link them without writing code.
+- **A browser workspace**, started with `launchBrowser()`, where you import
+  data, add maps, tables and charts, and link them without writing code. You
+  can also try it online at <https://dbvisuals.pages.dev>.
 - **`mosaic_gl()`**, an htmlwidget that combines Mosaic views and deck.gl layers
   over one DuckDB-WASM database and one shared selection, so a brush in any
   view filters the others.
