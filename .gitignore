@@ -34,7 +34,14 @@ r-package/inst/sqlrooms/node_modules/
 r-package/inst/sqlrooms/.vite/
 r-package/inst/sqlrooms/.next/
 frontend/sqlrooms-ai/node_modules/
+r-package/inst/viewer-src/node_modules/
+r-package/inst/viewer-src/dist/
 frontend/sqlrooms-ai/dist/
 docs/*
 !docs/visualization-bridge.md
 r-package/inst/doc
+
+# Publish only the two paper viewer routes; keep other local scratch files out.
+r-package/examples/*
+!r-package/examples/03_dimred_concat.R
+!r-package/examples/06_in_situ_zoom_overlay_transcripts_interactive.R

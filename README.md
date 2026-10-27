@@ -6,10 +6,11 @@ It is built on [SQLRooms](https://sqlrooms.org/), [deck.gl](https://deck.gl/), a
 
 ## Features
 
-- Launch a local SQLRooms-style browser workspace from R.
-- Explore DuckDB, CSV, Parquet, and other tabular data sources.
-- Build interactive visualizations with Mosaic and deck.gl.
-- Connect with GiottoDB, rMosaic, rDeckgl, and mosaic.gl.
+- Launch a local SQLRooms-style browser workspace (Canvas) from R.
+- Explore DuckDB, CSV, TSV, Parquet, JSON and Arrow data.
+- Build linked maps, charts and tables with Mosaic and deck.gl; a brush in one view filters the others.
+- Combine Mosaic views and deck.gl layers from R with the `mosaic_gl()` htmlwidget.
+- Connect with GiottoDB, rMosaic and rDeckgl.
 
 ## Getting Started
 
@@ -24,7 +25,7 @@ installing the R package.
 ```bash
 git clone https://github.com/dbverse-org/dbVisuals.git
 cd dbVisuals/frontend/sqlrooms-ai
-npm install
+npm ci
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
@@ -34,6 +35,9 @@ Open the local Vite URL printed by the dev server, usually:
 http://127.0.0.1:5173/
 ```
 
+Standalone Canvas uses DuckDB-WASM and accepts DuckDB, CSV, TSV, Parquet, JSON
+and Arrow files. **Add Chart** includes Spatial Map and Table; Mosaic brushes
+filter maps and tables that use the same source table.
 
 Useful frontend checks:
 
@@ -43,6 +47,9 @@ npm run test:bridge
 npm run lint
 npm run build
 ```
+
+See [the interaction check](CANVAS-EXAMPLE.md) for browser validation and
+[the bridge contract](docs/visualization-bridge.md) for supported behavior.
 
 </details>
 
@@ -64,7 +71,7 @@ library(dbVisuals)
 install_dbvisuals_deps()
 ```
 
-Launch an empty local workspace:
+Launch an empty local workspace (standalone DuckDB-WASM):
 
 ```r
 dashboard <- launchBrowser()
@@ -86,12 +93,31 @@ When you are done, stop the local background processes:
 ```r
 stop_sqlrooms(dashboard)
 ```
+
+Close the database's writer connection before a native launch to avoid DuckDB
+file locks. The native launcher listens on `127.0.0.1` only, uses a per-launch
+token and allows only the launched frontend origin; authorized SQL is trusted
+local access, not a sandbox. File dropping is standalone-only; browser imports
+are not synchronized to R.
+
+The `mosaic_gl()` htmlwidget, separate from Canvas, combines Mosaic views and
+deck.gl layers in one linked view from R; see `?mosaic_gl` and the package
+vignettes. The browser components load DuckDB-WASM from a public CDN, so they
+need internet access.
 </details>
 
+## Companion R interfaces
+
+[rMosaic](https://cran.r-project.org/package=rMosaic) and
+[rDeckgl](https://cran.r-project.org/package=rDeckgl) provide independent R
+interfaces to Mosaic and deck.gl. The supported bridge from Canvas is
+[manual recreation of individual charts](examples/companion-recreation/README.md),
+not dashboard export or round-trip compatibility. See
+[runtime differences](COMPATIBILITY.md).
 
 ## Related Projects
 
 - [SQLRooms](https://sqlrooms.org/)
 - [GiottoDB](https://github.com/dbverse-org/GiottoDB)
-- [rMosaic](https://github.com/TiRizvanov/rMosaic)
-- [rDeckgl](https://github.com/TiRizvanov/rDeckgl)
+- [rMosaic](https://cran.r-project.org/package=rMosaic)
+- [rDeckgl](https://cran.r-project.org/package=rDeckgl)

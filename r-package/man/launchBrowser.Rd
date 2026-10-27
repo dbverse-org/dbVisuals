@@ -11,22 +11,18 @@ launchBrowser(
   frontend_port = 5173,
   browser = TRUE,
   daemon = FALSE,
-  host = "127.0.0.1",
-  agent = FALSE,
-  agent_token = NULL,
-  agent_allow_write = FALSE,
-  agent_allow_r = FALSE,
-  agent_max_rows = 1000L
+  host = "127.0.0.1"
 )
 }
 \arguments{
-\item{db_path}{Optional path to a DuckDB database file. If NULL, uses an in-memory database.}
+\item{db_path}{Optional path to a DuckDB database file. If NULL, starts a
+standalone DuckDB-WASM workspace in the browser, independent of R data.}
 
 \item{project}{Optional `dbProject` R6 object (from the `dbProject` package)
 or a `DBIConnection`. When supplied, `db_path` is derived from the
 connection's underlying DuckDB file. Mutually exclusive with `db_path`.}
 
-\item{port}{Port number for the R server (default: 3001)}
+\item{port}{Port number for the R server when a database file is supplied (default: 3001)}
 
 \item{frontend_port}{Port number for the frontend server (default: 5173)}
 
@@ -35,46 +31,23 @@ connection's underlying DuckDB file. Mutually exclusive with `db_path`.}
 \item{daemon}{Logical. Run server in background (default: FALSE)}
 
 \item{host}{Host address (default: "127.0.0.1")}
-
-\item{agent}{Logical. Enable the local dbVisuals agent API for AI-assisted
-schema inspection, bounded SQL, materialization, and visualization
-rendering (default: FALSE).}
-
-\item{agent_token}{Optional bearer token for the local agent API. If
-\code{agent = TRUE} and no token is supplied, a random token is generated.}
-
-\item{agent_allow_write}{Logical. Allow the agent to create tables/views and
-persist visualization metadata (default: FALSE).}
-
-\item{agent_allow_r}{Logical. Allow the agent to execute R code through the
-existing SQL Rooms R execution path (default: FALSE).}
-
-\item{agent_max_rows}{Integer. Maximum rows returned by bounded agent SQL
-queries and visualization data previews (default: 1000).}
 }
 \value{
 Invisibly returns a list with server information.
 }
 \description{
 Opens a browser-based dbVisuals workspace for interactive data exploration
-with support for deck.gl, Mosaic, and R visualizations. The interface connects
-to the current R session for executing R code.
+with support for deck.gl and Mosaic visualizations. A local, authenticated
+server provides access to the selected DuckDB database; arbitrary R code
+execution and AI features are not exposed.
 }
 \examples{
 \dontrun{
-# Launch with in-memory database
+# Launch a standalone browser workspace
 launchBrowser()
 
 # Launch with a specific GiottoDB database
 launchBrowser(db_path = "giottodb-visium.db")
-
-# Launch from a dbProject
-proj <- dbProject::dbProject(path = "my_project", dbdir = "my.duckdb")
-launchBrowser(project = proj)
-
-# Launch from a raw DBIConnection
-con <- DBI::dbConnect(duckdb::duckdb(), dbdir = "my.duckdb")
-launchBrowser(project = con)
 
 # Launch without opening browser
 launchBrowser(browser = FALSE)

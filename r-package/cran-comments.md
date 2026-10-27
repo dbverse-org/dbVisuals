@@ -1,38 +1,57 @@
-# Submission notes — dbVisuals 0.1.0
+# Submission notes: dbVisuals 0.1.0
+
+This is a new submission.
 
 ## Test environments
 
-* local macOS 15 (aarch64-apple-darwin20), R 4.5.1 — 0 errors, 0 warnings, 1 NOTE
-* (please re-run on win-builder + R-hub before submission)
+To be completed before submission:
+
+* local macOS (aarch64), R release
+* win-builder (R-devel and R-release)
+* R-hub (Linux, macOS, Windows)
 
 ## R CMD check results
 
-0 errors | 0 warnings | 1 NOTE (new submission)
+To be completed before submission. A partial `R CMD check --as-cran` on
+Windows 11 (R 4.6.0) built and installed the package and passed the
+namespace, dependency, file-name and installation checks; the expected NOTEs
+are below.
 
-  > New submission
-  > Found the following (possibly) invalid URLs:
-  >   https://github.com/dbverse-org/GiottoDB     (private)
-  >   https://github.com/dbverse-org/dbVisuals2   (this repo, private)
-  >   https://github.com/dbverse-org/dbVisuals2/issues
-  >   https://github.com/giotto-suite/Giotto      (moved — kept since the
-  >                                                redirect is permanent)
+## Expected NOTEs
 
-All flagged GitHub repositories will be made public before this submission is
-sent to CRAN. The `Giotto` redirect resolves to HTTP 200 already and is the
-canonical repository home.
+* New submission.
+* Installed size. `inst/sqlrooms/` (about 17 MB unpacked; the source tarball is
+  under 5 MB) is the prebuilt SQL Rooms Canvas web application that
+  `launchBrowser()` serves from a local httpuv process, and
+  `inst/htmlwidgets/lib/mosaic_gl/` (about 2 MB) is the bundle of the
+  `mosaic_gl()` htmlwidget. The package does not work without them.
 
-## Bundled SQL Rooms web UI
+## Bundled JavaScript
 
-`inst/sqlrooms/` (~4.4 MB) is the pre-built SQL Rooms single-page application
-(MIT-licensed) that `launchBrowser()` serves through a local httpuv process.
-The package would not function without it; users do not need network access
-to load the UI.
+Both browser applications are minified bundles of permissively licensed
+libraries (MIT, BSD, ISC, Apache 2.0). Every bundled component and its
+copyright holder is listed in `inst/COPYRIGHTS`, which the `Copyright` field of
+DESCRIPTION refers to.
 
-## Optional integrations
+* Source of the `mosaic_gl()` bundle: shipped in the package, `inst/viewer-src/`
+  (with `package-lock.json`; `npm ci && npm run build` reproduces it).
+* Source of the Canvas application: `frontend/sqlrooms-ai/` in
+  https://github.com/dbverse-org/dbVisuals (with `package-lock.json`).
 
-Several integration packages (rDeckgl, rMosaic, GiottoDB, dbProject) are
-intentionally *not* listed under `Suggests:` because they are not on a
-mainstream R package repository. They are loaded conditionally with
-`requireNamespace()` from `launchBrowser()` and are installable via the
-helper `install_dbvisuals_deps()` which asks for interactive consent before
-calling `install.packages()` / `remotes::install_github()`.
+## Internet access
+
+The browser components load DuckDB-WASM from jsDelivr when displayed; this is
+stated in the Description and in `?mosaic_gl`. Examples and tests do not
+require network access: examples that would open a browser or start a server
+are wrapped in `\dontrun{}` or `if (interactive())`.
+
+## Installing packages
+
+`install_dbvisuals_deps()` installs optional packages only after interactive
+consent (`readline()` confirmation); in non-interactive sessions it reports
+what is missing and installs nothing.
+
+## URLs
+
+https://github.com/dbverse-org/dbVisuals is made public before this submission
+is sent.

@@ -1,1 +1,0 @@
-import{o as e,r as t,t as n,xt as r}from"./useGetPanel-4PPAhde0.js";var i=r(),a=({defaultComponent:r})=>{let a=t(),o=n(a.node),s=o?.component;if(s){let t=e(a.node);return t.panelId?(0,i.jsx)(s,{panelInfo:o,...t}):r}return r};export{a as t};

@@ -1,0 +1,34 @@
+name: frontend-checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - 'versions.json'
+      - '.github/workflows/frontend-checks.yaml'
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - 'versions.json'
+      - '.github/workflows/frontend-checks.yaml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/sqlrooms-ai
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/sqlrooms-ai/package-lock.json
+      - run: npm ci
+      # typecheck + lint + bridge compiler tests + deck.gl/Mosaic version parity.
+      # test:versions hard-gates the frontend anchor and gates new drift in the
+      # rDeckgl / rMosaic / mosaic.gl bundles (sibling repos are skipped here).
+      - run: npm run check
+      - run: npm run build

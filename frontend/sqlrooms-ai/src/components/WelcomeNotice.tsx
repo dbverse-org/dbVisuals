@@ -61,20 +61,19 @@ export function WelcomeNotice() {
               <div>
                 <h2 className="font-medium text-slate-100">Local by default</h2>
                 <p className="mt-1 text-sm leading-5 text-slate-400">
-                  Your data is processed in this browser. dbVisuals does not
-                  upload it to a dbVisuals server. API keys are stored locally
-                  in this browser for future visits and are sent only to the
-                  model provider you choose when you use AI features.
+                  In standalone mode, your data is processed in this browser.
+                  When connected to native DuckDB, queries use your local R session.
+                  Neither mode uploads your data to a hosted dbVisuals server.
                 </p>
               </div>
             </div>
             <div className="flex gap-3">
               <ShieldCheck className="mt-0.5 size-5 shrink-0 text-violet-300" />
               <div>
-                <h2 className="font-medium text-slate-100">You stay in control</h2>
+                <h2 className="font-medium text-slate-100">Direct controls</h2>
                 <p className="mt-1 text-sm leading-5 text-slate-400">
-                  Optional AI features contact your selected model provider only
-                  when you use them, subject to that provider&apos;s policies.
+                  Build linked charts, spatial maps, and tables from the Canvas,
+                  or inspect your data with SQL.
                 </p>
               </div>
             </div>

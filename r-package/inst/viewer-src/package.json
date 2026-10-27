@@ -1,0 +1,29 @@
+{
+  "name": "mosaic_gl-viewer",
+  "version": "0.2.12",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev":   "vite"
+  },
+  "dependencies": {
+    "@duckdb/duckdb-wasm":        "1.29.0",
+    "@uwdata/vgplot":             "0.25.0",
+    "@uwdata/mosaic-spec":        "0.25.0",
+    "@uwdata/flechette":          "2.4.0",
+    "apache-arrow":               "17.0.0",
+    "deck.gl":                    "9.3.2",
+    "@deck.gl/core":              "9.3.2",
+    "@deck.gl/layers":            "9.3.2",
+    "@deck.gl/aggregation-layers":"9.3.2",
+    "@deck.gl/extensions":        "9.3.2",
+    "@luma.gl/core":              "9.3.3",
+    "@luma.gl/engine":            "9.3.3",
+    "@luma.gl/webgl":             "9.3.3",
+    "@geoarrow/deck.gl-layers":   "0.3.2"
+  },
+  "devDependencies": {
+    "vite": "5.4.10"
+  }
+}

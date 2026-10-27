@@ -7,6 +7,11 @@ import {
 import {produce} from 'immer';
 import {z} from 'zod';
 
+export const MATRIX_HEATMAP_MAX_ROW_LIMIT = 100;
+export const MATRIX_HEATMAP_MAX_COLUMN_LIMIT = 200;
+export const MATRIX_HEATMAP_MAX_CELLS = 10000;
+export const DATA_TABLE_MAX_PAGE_SIZE = 100;
+
 export const CANVAS_SLOT_IDS = [
   'A1',
   'A2',
@@ -54,36 +59,39 @@ export type CanvasDeckDatasetConfig = z.infer<
   typeof CanvasDeckDatasetConfig
 >;
 
-export const CanvasBridgePointMapConfig = z.object({
-  type: z.literal('pointMap'),
-  table: z.string(),
-  x: z.string(),
-  y: z.string(),
-  color: z.string().optional(),
-});
-export type CanvasBridgePointMapConfig = z.infer<
-  typeof CanvasBridgePointMapConfig
+export const CanvasSpatialMapGeometry = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('coordinates'),
+    x: z.string().min(1),
+    y: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal('column'),
+    column: z.string().min(1),
+    x: z.string().min(1).optional(),
+    y: z.string().min(1).optional(),
+  }),
+]);
+export type CanvasSpatialMapGeometry = z.infer<
+  typeof CanvasSpatialMapGeometry
 >;
 
-export const CanvasBridgePolygonMapConfig = z.object({
-  type: z.literal('polygonMap'),
+export const CanvasBridgeSpatialMapConfig = z.object({
+  type: z.literal('spatialMap'),
   table: z.string(),
-  geometryColumn: z.string(),
-  x: z.string().optional(),
-  y: z.string().optional(),
-  color: z.string().optional(),
+  geometry: CanvasSpatialMapGeometry,
 });
-export type CanvasBridgePolygonMapConfig = z.infer<
-  typeof CanvasBridgePolygonMapConfig
+export type CanvasBridgeSpatialMapConfig = z.infer<
+  typeof CanvasBridgeSpatialMapConfig
 >;
 
 export const CanvasBridgeMatrixHeatmapConfig = z.object({
   type: z.literal('matrixHeatmap'),
   table: z.string(),
   sqlQuery: z.string(),
-  rowLimit: z.number().int().positive(),
-  columnLimit: z.number().int().positive(),
-  maxCells: z.number().int().positive(),
+  rowLimit: z.number().int().positive().max(MATRIX_HEATMAP_MAX_ROW_LIMIT),
+  columnLimit: z.number().int().positive().max(MATRIX_HEATMAP_MAX_COLUMN_LIMIT),
+  maxCells: z.number().int().positive().max(MATRIX_HEATMAP_MAX_CELLS),
   columnFilterTable: z.string().optional(),
   columnFilterColumn: z.string().optional(),
   columnFilterGeometryColumn: z.string().optional(),
@@ -96,15 +104,14 @@ export const CanvasBridgeDataTableConfig = z.object({
   type: z.literal('table'),
   table: z.string(),
   columns: z.array(z.string()).optional(),
-  pageSize: z.number().int().positive(),
+  pageSize: z.number().int().positive().max(DATA_TABLE_MAX_PAGE_SIZE),
 });
 export type CanvasBridgeDataTableConfig = z.infer<
   typeof CanvasBridgeDataTableConfig
 >;
 
 export const CanvasBridgeConfig = z.discriminatedUnion('type', [
-  CanvasBridgePointMapConfig,
-  CanvasBridgePolygonMapConfig,
+  CanvasBridgeSpatialMapConfig,
   CanvasBridgeMatrixHeatmapConfig,
   CanvasBridgeDataTableConfig,
 ]);
@@ -113,9 +120,9 @@ export type CanvasBridgeConfig = z.infer<typeof CanvasBridgeConfig>;
 export const CanvasMatrixHeatmapSpec = z.object({
   sqlQuery: z.string(),
   table: z.string(),
-  rowLimit: z.number().int().positive(),
-  columnLimit: z.number().int().positive(),
-  maxCells: z.number().int().positive(),
+  rowLimit: z.number().int().positive().max(MATRIX_HEATMAP_MAX_ROW_LIMIT),
+  columnLimit: z.number().int().positive().max(MATRIX_HEATMAP_MAX_COLUMN_LIMIT),
+  maxCells: z.number().int().positive().max(MATRIX_HEATMAP_MAX_CELLS),
   matrixRowIndexColumn: z.string().default('i'),
   matrixColumnIndexColumn: z.string().default('j'),
   matrixValueColumn: z.string().default('x'),
@@ -123,8 +130,11 @@ export const CanvasMatrixHeatmapSpec = z.object({
   columnNamesTable: z.string().optional(),
   rowNameColumn: z.string().default('rownames'),
   columnNameColumn: z.string().default('colnames'),
-  rowNames: z.array(z.string()).optional(),
-  columnNames: z.array(z.string()).optional(),
+  rowNames: z.array(z.string()).max(MATRIX_HEATMAP_MAX_ROW_LIMIT).optional(),
+  columnNames: z
+    .array(z.string())
+    .max(MATRIX_HEATMAP_MAX_COLUMN_LIMIT)
+    .optional(),
   columnFilterTable: z.string().optional(),
   columnFilterColumn: z.string().optional(),
   columnFilterGeometryColumn: z.string().optional(),
@@ -135,13 +145,16 @@ export const CanvasMatrixHeatmapSpec = z.object({
   columnLabelColumn: z.string().default('column_label'),
   columnOrderColumn: z.string().default('column_order'),
   valueColumn: z.string().default('value'),
-});
+}).refine(
+  ({rowLimit, columnLimit, maxCells}) => rowLimit * columnLimit <= maxCells,
+  {message: 'rowLimit × columnLimit must not exceed maxCells.'},
+);
 export type CanvasMatrixHeatmapSpec = z.infer<typeof CanvasMatrixHeatmapSpec>;
 
 export const CanvasDataTableSpec = z.object({
   tableName: z.string(),
   columns: z.array(z.string()).optional(),
-  pageSize: z.number().int().positive().max(1000).default(5),
+  pageSize: z.number().int().positive().max(DATA_TABLE_MAX_PAGE_SIZE).default(5),
   selectionName: z.string().optional(),
 });
 export type CanvasDataTableSpec = z.infer<typeof CanvasDataTableSpec>;

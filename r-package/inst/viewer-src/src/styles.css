@@ -1,0 +1,49 @@
+/* Mosaic.gl — minimal styles. We let Mosaic provide the look-and-feel of the
+   plots, menus, tables, etc. Only deck.gl panel chrome is styled here, and
+   even that is kept neutral so it matches the page's existing theme. */
+
+.mosaic_gl-root {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+}
+
+/* deck.gl panel + concat panes */
+.mosaic_gl-deckgl-panel {
+  background: transparent;
+}
+.mosaic_gl-deckgl-board {
+  background: transparent;
+}
+.mosaic_gl-deckgl-slot {
+  background: transparent;
+}
+.mosaic_gl-deckgl-panel canvas { display: block; }
+
+.mosaic_gl-panel-title {
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #555;
+  border-bottom: 1px solid #ddd;
+  background: transparent;
+  flex: 0 0 auto;
+}
+.mosaic_gl-pane-title {
+  padding: 2px 6px;
+  font-size: 10px;
+  color: #555;
+  background: transparent;
+  flex: 0 0 auto;
+}
+
+/* Toolbar (pan / lasso / fit) — kept light to match Mosaic */
+.mosaic_gl-toolbar { background: transparent !important; }
+.mosaic_gl-tool-btn {
+  background: #f5f5f5 !important;
+  color: #333 !important;
+  border: 1px solid #ccc !important;
+}
+.mosaic_gl-tool-btn.active {
+  background: #2563eb !important;
+  color: #fff !important;
+  border-color: #2563eb !important;
+}

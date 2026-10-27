@@ -1,13 +1,13 @@
-url: https://dbverse-org.github.io/dbVisuals2/
+url: https://dbverse-org.github.io/dbVisuals/
 destination: pkgdown
 template:
   bootstrap: 5
   bootswatch: flatly
 
 home:
-  title: "dbVisuals: User Interface for dbverse Objects"
+  title: "dbVisuals: Database-Powered Visualizations for Spatial Data"
   description: >
-    SQLRooms implementation with REPL functionality designed to enable interactive analyses and visualizations of dbverse objects.
+    A local SQLRooms workspace and an R htmlwidget for linked, database-backed visualizations of dbverse and DuckDB data.
 
 navbar:
   structure:
@@ -23,12 +23,16 @@ navbar:
       menu:
       - text: Getting Started
         href: articles/getting-started.html
+      - text: Linked visualization examples
+        href: articles/visualization-examples.html
+      - text: Reproducing the paper figures
+        href: articles/reproducing-paper-figures.html
     news:
       text: News
       href: news/index.html
     github:
       icon: fab fa-github fa-lg
-      href: https://github.com/dbverse-org/dbVisuals2
+      href: https://github.com/dbverse-org/dbVisuals
       aria-label: GitHub
 
 reference:
@@ -40,6 +44,15 @@ reference:
       - sqlrooms_export_table
       - sqlrooms_register
       - dbvisuals_export_htmlwidget
+  - title: "Linked R viewer"
+    desc: "Mosaic views and deck.gl layers in one linked htmlwidget"
+    contents:
+      - mosaic_gl
+      - mgl_spec
+      - mgl_data
+      - mgl_deckgl
+      - mosaic_glOutput
+      - renderMosaic_gl
   - title: "Installation Helpers"
     desc: "Dependency management"
     contents:
