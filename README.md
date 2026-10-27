@@ -52,8 +52,6 @@ npm run build
 package (`r-package/inst/sqlrooms/`). The separate `mosaic_gl()` widget is built
 from `r-package/inst/viewer-src` with `npm ci && npm run build`.
 
-See [the interaction check](CANVAS-EXAMPLE.md) for browser validation.
-
 </details>
 
 <details>
@@ -113,9 +111,8 @@ need internet access.
 
 [rMosaic](https://cran.r-project.org/package=rMosaic) and
 [rDeckgl](https://cran.r-project.org/package=rDeckgl) provide independent R
-interfaces to Mosaic and deck.gl. The supported bridge from Canvas is
-[manual recreation of individual charts](examples/companion-recreation/README.md),
-not dashboard export or round-trip compatibility.
+interfaces to Mosaic and deck.gl. Charts built in Canvas are not exported to
+them automatically.
 
 ## Related Projects
 
