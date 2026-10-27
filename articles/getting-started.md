@@ -75,8 +75,8 @@ dashboard <- launchBrowser()
 
 #### Launch with GiottoDB Database
 
-For spatial data analysis, connect to a GiottoDB database from [Giotto
-Suite](https://giottosuite.com).
+For spatial data, open a
+[GiottoDB](https://github.com/giotto-suite/GiottoDB) database.
 
 ``` r
 
