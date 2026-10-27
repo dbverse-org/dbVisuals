@@ -48,8 +48,11 @@ npm run lint
 npm run build
 ```
 
-See [the interaction check](CANVAS-EXAMPLE.md) for browser validation and
-[the bridge contract](docs/visualization-bridge.md) for supported behavior.
+`npm run build:r-package` rebuilds the Canvas app and copies it into the R
+package (`r-package/inst/sqlrooms/`). The separate `mosaic_gl()` widget is built
+from `r-package/inst/viewer-src` with `npm ci && npm run build`.
+
+See [the interaction check](CANVAS-EXAMPLE.md) for browser validation.
 
 </details>
 
@@ -112,12 +115,11 @@ need internet access.
 [rDeckgl](https://cran.r-project.org/package=rDeckgl) provide independent R
 interfaces to Mosaic and deck.gl. The supported bridge from Canvas is
 [manual recreation of individual charts](examples/companion-recreation/README.md),
-not dashboard export or round-trip compatibility. See
-[runtime differences](COMPATIBILITY.md).
+not dashboard export or round-trip compatibility.
 
 ## Related Projects
 
 - [SQLRooms](https://sqlrooms.org/)
-- [GiottoDB](https://github.com/dbverse-org/GiottoDB)
+- [GiottoDB](https://github.com/giotto-suite/GiottoDB)
 - [rMosaic](https://cran.r-project.org/package=rMosaic)
 - [rDeckgl](https://cran.r-project.org/package=rDeckgl)

@@ -49,5 +49,4 @@ their normal CDN assets.
 The checks compare all 100 Arrow records, histogram bins, 48 brushed IDs and map
 positions/style against the source fixture, and save screenshots. These are
 functional checks, not performance measurements or proof of every GPU primitive.
-See [runtime differences](../../COMPATIBILITY.md) and
-[fixture provenance limits](../../CANVAS-EXAMPLE.md).
+See [fixture provenance limits](../../CANVAS-EXAMPLE.md).
