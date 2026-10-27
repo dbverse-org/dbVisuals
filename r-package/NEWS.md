@@ -34,7 +34,7 @@ versions. Preparing it for CRAN:
 * `launchBrowser()` prints the session link for a file-backed database, so
   `browser = FALSE` sessions can open it, and quotes database paths that
   contain an apostrophe.
-* Canvas keeps native and standalone workspaces under separate saved states.
+* The browser workspace keeps native and standalone sessions under separate saved states.
 * Viewer bundle 0.2.11.
 
 # dbVisuals 0.1.0.9003

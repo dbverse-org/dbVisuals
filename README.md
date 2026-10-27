@@ -1,120 +1,83 @@
 # dbVisuals
 
-dbVisuals is a local visualization workspace and R package in the [dbverse](https://github.com/dbverse-org) ecosystem.
+dbVisuals is a visualization workspace and R package in the
+[dbverse](https://github.com/dbverse-org) ecosystem.
 
-It is built on [SQLRooms](https://sqlrooms.org/), [deck.gl](https://deck.gl/), and [Mosaic](https://idl.uw.edu/mosaic/) for interactive exploration of data residing in [DuckDB](https://duckdb.org/) and other tabular data sources (e.g. parquet, csv, etc.).
+It is built on [SQLRooms](https://sqlrooms.org/), [deck.gl](https://deck.gl/)
+and [Mosaic](https://idl.uw.edu/mosaic/) for interactive exploration of data in
+[DuckDB](https://duckdb.org/) and other tabular sources (Parquet, CSV and more).
+
+**Try it in your browser:** <https://dbvisuals.pages.dev>. Nothing to install;
+the files you open stay in your browser.
 
 ## Features
 
-- Launch a local SQLRooms-style browser workspace (Canvas) from R.
 - Explore DuckDB, CSV, TSV, Parquet, JSON and Arrow data.
-- Build linked maps, charts and tables with Mosaic and deck.gl; a brush in one view filters the others.
-- Combine Mosaic views and deck.gl layers from R with the `mosaic_gl()` htmlwidget.
+- Build linked maps, charts and tables with Mosaic and deck.gl; a brush in one
+  view filters the others.
+- Launch the workspace from R, on a DuckDB database or with no data.
+- Combine Mosaic views and deck.gl layers from R with the `mosaic_gl()`
+  htmlwidget.
 - Connect with GiottoDB, rMosaic and rDeckgl.
 
-## Getting Started
-
-Choose the workflow that matches how you want to use dbVisuals.
-
-<details open>
-<summary><strong>React (Language Agnostic)</strong></summary>
-
-Use this path when you want to work on the browser app directly without
-installing the R package.
-
-```bash
-git clone https://github.com/dbverse-org/dbVisuals.git
-cd dbVisuals/frontend/sqlrooms-ai
-npm ci
-npm run dev -- --host 127.0.0.1 --port 5173
-```
-
-Open the local Vite URL printed by the dev server, usually:
-
-```text
-http://127.0.0.1:5173/
-```
-
-Standalone Canvas uses DuckDB-WASM and accepts DuckDB, CSV, TSV, Parquet, JSON
-and Arrow files. **Add Chart** includes Spatial Map and Table; Mosaic brushes
-filter maps and tables that use the same source table.
-
-Useful frontend checks:
-
-```bash
-npm run typecheck
-npm run test:bridge
-npm run lint
-npm run build
-```
-
-`npm run build:r-package` rebuilds the Canvas app and copies it into the R
-package (`r-package/inst/sqlrooms/`). The separate `mosaic_gl()` widget is built
-from `r-package/inst/viewer-src` with `npm ci && npm run build`.
-
-</details>
-
-<details>
-<summary><strong>R Package</strong></summary>
-
-Install the R package from GitHub:
+## R package
 
 ```r
-install.packages("remotes")
-remotes::install_github("dbverse-org/dbVisuals", subdir = "r-package")
+install.packages("dbVisuals")
+
+# development version
+install.packages("dbVisuals",
+                 repos = c("https://dbverse-org.r-universe.dev",
+                           "https://cloud.r-project.org"))
 ```
 
-Load dbVisuals and install the optional visualization dependencies:
+Launch the workspace with no data, on an existing DuckDB database, or on an
+open DBI connection:
 
 ```r
 library(dbVisuals)
 
-install_dbvisuals_deps()
-```
-
-Launch an empty local workspace (standalone DuckDB-WASM):
-
-```r
 dashboard <- launchBrowser()
-```
+# dashboard <- launchBrowser(db_path = "test.db")
+# dashboard <- launchBrowser(project = DBI::dbConnect(duckdb::duckdb(), "test.db"))
 
-Launch dbVisuals against an existing DuckDB database:
-```r
-dashboard <- launchBrowser(db_path = "test.db")
-```
-
-Or pass an active DBI connection:
-```r
-con <- DBI::dbConnect(duckdb::duckdb(), "test.db")
-dashboard <- launchBrowser(project = con)
-```
-
-When you are done, stop the local background processes:
-
-```r
 stop_sqlrooms(dashboard)
 ```
 
-Close the database's writer connection before a native launch to avoid DuckDB
-file locks. The native launcher listens on `127.0.0.1` only, uses a per-launch
-token and allows only the launched frontend origin; authorized SQL is trusted
-local access, not a sandbox. File dropping is standalone-only; browser imports
-are not synchronized to R.
+Close any other connection that writes to a database before opening it with
+`launchBrowser()`. The launcher listens only on `127.0.0.1` and uses a
+per-session token. The browser components load DuckDB-WASM from a public CDN,
+so they need internet access.
 
-The `mosaic_gl()` htmlwidget, separate from Canvas, combines Mosaic views and
-deck.gl layers in one linked view from R; see `?mosaic_gl` and the package
-vignettes. The browser components load DuckDB-WASM from a public CDN, so they
-need internet access.
+The `mosaic_gl()` htmlwidget combines Mosaic views and deck.gl layers in one
+linked view from R; see `?mosaic_gl` and the package vignettes. Documentation:
+<https://dbverse-org.github.io/dbVisuals/>.
+
+<details>
+<summary><strong>Development</strong></summary>
+
+The browser app lives in `frontend/sqlrooms-ai`:
+
+```bash
+cd frontend/sqlrooms-ai
+npm ci
+npm run dev              # local development server
+npm run build:r-package  # rebuild the copy shipped in r-package/inst/sqlrooms
+```
+
+The `mosaic_gl()` widget is built from `r-package/inst/viewer-src` with
+`npm ci && npm run build`.
+
 </details>
 
-## Companion R interfaces
+## Companion R packages
 
 [rMosaic](https://cran.r-project.org/package=rMosaic) and
 [rDeckgl](https://cran.r-project.org/package=rDeckgl) provide independent R
-interfaces to Mosaic and deck.gl. Charts built in Canvas are not exported to
-them automatically.
+interfaces to Mosaic and deck.gl. Charts built in the dbVisuals workspace are
+not exported to them automatically.
 
-## Related Projects
+## Related projects
 
 - [SQLRooms](https://sqlrooms.org/)
 - [GiottoDB](https://github.com/giotto-suite/GiottoDB)
