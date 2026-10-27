@@ -2,7 +2,7 @@
 #'
 #' Renders a Mosaic or deck.gl specification through `rMosaic` or `rDeckgl`
 #' and saves the resulting htmlwidget to disk. This is intended for durable
-#' exports from dbVisuals specs; the live dbVisuals canvas continues to use the
+#' exports from dbVisuals specs; the live dbVisuals workspace continues to use the
 #' SQLRooms React runtime.
 #'
 #' @param spec A widget specification as an R list, JSON string, JSON file path,

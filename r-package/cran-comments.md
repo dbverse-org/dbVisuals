@@ -4,27 +4,28 @@ This is a new submission.
 
 ## Test environments
 
-To be completed before submission:
-
-* local macOS (aarch64), R release
-* win-builder (R-devel and R-release)
-* R-hub (Linux, macOS, Windows)
+* local Ubuntu (WSL2), R 4.6.0, with the PDF manual
+* win-builder: R-release (4.6.1) and R-devel
+* R-hub: linux, windows and macos-arm64 (R-devel), ubuntu-clang, ubuntu-gcc12,
+  donttest, nosuggests, vnu
+* GitHub Actions: macOS and Windows (R release); Ubuntu (R devel, release and
+  oldrel-1)
 
 ## R CMD check results
 
-To be completed before submission. A partial `R CMD check --as-cran` on
-Windows 11 (R 4.6.0) built and installed the package and passed the
-namespace, dependency, file-name and installation checks; the expected NOTEs
-are below.
-
-## Expected NOTEs
+0 errors | 0 warnings | 1-2 NOTEs
 
 * New submission.
-* Installed size. `inst/sqlrooms/` (about 17 MB unpacked; the source tarball is
-  under 5 MB) is the prebuilt SQL Rooms Canvas web application that
-  `launchBrowser()` serves from a local httpuv process, and
-  `inst/htmlwidgets/lib/mosaic_gl/` (about 2 MB) is the bundle of the
-  `mosaic_gl()` htmlwidget. The package does not work without them.
+* "Possibly misspelled words in DESCRIPTION: omics". "Spatial omics" is the
+  standard name of the field the 'GiottoDB' example comes from.
+* Installed size (reported on some platforms). See below.
+
+## Installed size
+
+`inst/sqlrooms/` (about 17 MB unpacked; the source tarball is under 5 MB) is
+the prebuilt dbVisuals web application that `launchBrowser()` serves from a
+local httpuv process, and `inst/htmlwidgets/lib/mosaic_gl/` (about 2 MB) is the
+bundle of the `mosaic_gl()` htmlwidget. The package does not work without them.
 
 ## Bundled JavaScript
 
@@ -35,23 +36,19 @@ DESCRIPTION refers to.
 
 * Source of the `mosaic_gl()` bundle: shipped in the package, `inst/viewer-src/`
   (with `package-lock.json`; `npm ci && npm run build` reproduces it).
-* Source of the Canvas application: `frontend/sqlrooms-ai/` in
+* Source of the web application: `frontend/sqlrooms-ai/` in
   https://github.com/dbverse-org/dbVisuals (with `package-lock.json`).
 
 ## Internet access
 
 The browser components load DuckDB-WASM from jsDelivr when displayed; this is
-stated in the Description and in `?mosaic_gl`. Examples and tests do not
-require network access: examples that would open a browser or start a server
-are wrapped in `\dontrun{}` or `if (interactive())`.
+stated in the Description and in `?mosaic_gl`. Examples, tests and vignettes do
+not require network access: examples that would open a browser or start a
+server are wrapped in `\dontrun{}` or `if (interactive())`, and vignette code
+is not evaluated.
 
 ## Installing packages
 
 `install_dbvisuals_deps()` installs optional packages only after interactive
 consent (`readline()` confirmation); in non-interactive sessions it reports
 what is missing and installs nothing.
-
-## URLs
-
-https://github.com/dbverse-org/dbVisuals is made public before this submission
-is sent.
