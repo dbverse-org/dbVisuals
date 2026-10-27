@@ -30,14 +30,20 @@ install.packages(c("DBI", "duckdb", "rDeckgl", "rMosaic"))
 dbVisuals::install_dbvisuals_deps()
 ```
 
-`dbVisuals` itself is not on CRAN yet. The historical R benchmark source is
-`dbverse-org/dbVisuals2@paper-repro`, pinned at revision `623041f`; it is not the
-Canvas-only submission snapshot. For this private review, install the current
-local checkout instead of the historical or default remote branch:
+Install `dbVisuals` from CRAN, or the development version from the dbverse
+r-universe:
 
 ```{r}
-remotes::install_local("r-package")
+install.packages("dbVisuals")
+
+# development version
+install.packages("dbVisuals",
+                 repos = c("https://dbverse-org.r-universe.dev",
+                           "https://cloud.r-project.org"))
 ```
+
+The figures and benchmarks in the Application Note were made with `dbVisuals`
+0.1.0 (commit `7f6eb52` of <https://github.com/dbverse-org/dbVisuals>).
 
 ## Entry point 1 — the SQLRooms browser workspace
 
@@ -213,11 +219,10 @@ the 10x Genomics Atera In Situ Gene Expression, FFPE Human Breast Cancer preview
 dataset on the Xenium platform.
 
 The spec patterns are documented in `vignette("visualization-examples",
-package = "dbVisuals")`. The two source routes below are tracked on the
-`paper-repro` branch under `r-package/examples/`. They are repository examples,
-not installed R help examples; the large public input datasets are not bundled.
-Use the same branch for the installed package and cloned examples. These are
-R-package viewer demonstrations, not measurements of the Canvas/WASM application.
+package = "dbVisuals")`. The two scripts below are in the repository under
+`r-package/examples/`. They are repository examples, not installed R help
+examples, and the large public input datasets are not bundled. Use the same
+release for the installed package and the cloned examples.
 
 | Script | Renders |
 | --- | --- |
@@ -232,11 +237,11 @@ These scripts are not installed with the package, so run them from a clone of th
 repository with `r-package/` as the working directory:
 
 ```bash
-git clone --branch paper-repro https://github.com/dbverse-org/dbVisuals2.git
+git clone --branch v0.1.0 https://github.com/dbverse-org/dbVisuals.git
 ```
 
 ```r
-setwd("path/to/dbVisuals2/r-package")
+setwd("path/to/dbVisuals/r-package")
 source("examples/03_dimred_concat.R")
 ```
 
@@ -244,7 +249,7 @@ For the in-situ scripts, point the environment at your data and run them from an
 interactive session:
 
 ```r
-setwd("path/to/dbVisuals2/r-package")
+setwd("path/to/dbVisuals/r-package")
 Sys.setenv(DBLENS_DEMO_DB = "/path/to/WTA_Preview_FFPE_Breast_Cancer_xenium.duckdb")
 Sys.setenv(DBLENS_TRANSCRIPT_FILE = "/path/to/transcripts.parquet")
 source("examples/06_in_situ_zoom_overlay_transcripts_interactive.R")

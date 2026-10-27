@@ -30,7 +30,8 @@ class PaperReproduction(unittest.TestCase):
 
     def test_vignette_points_to_published_branch_and_routes(self):
         text = (ROOT / 'r-package/vignettes/reproducing-paper-figures.Rmd').read_text()
-        self.assertIn('dbverse-org/dbVisuals2@paper-repro', text)
+        self.assertIn('git clone --branch v0.1.0 https://github.com/dbverse-org/dbVisuals.git', text)
+        self.assertNotIn('dbVisuals2', text)
         self.assertNotIn('they are gitignored', text)
         self.assertNotIn('01_in_situ_with_marginals.R', text)
 
