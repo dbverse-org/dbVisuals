@@ -18,16 +18,15 @@ knitr::opts_chunk$set(
 # Introduction
 
 dbVisuals is a visualization workspace built on [SQLRooms](https://sqlrooms.org/)
-for interactive exploration of [dbverse](https://github.com/dbverse-org) data.
+for interactive exploration of tabular and database-backed data, from DuckDB
+databases, [dbverse](https://github.com/dbverse-org) objects and data files.
+With it you can:
 
-## dbVisuals features
-
-- **Dropzone** - Drag and drop files directly into the UI for exploration
-- **SQL Editor** - Run queries on database-backed objects
-- **Hardware-accelerated Visualizations** - High-performance WebGL spatial rendering using [deck.gl](https://deck.gl/)
-- **Interactive Linked Views** - Create interactive linked visualizations using [Mosaic specs](https://github.com/uwdata/mosaic)
-- **Live Connection** - Call the UI from R
-- **Smart Chart Builder** - Easily create charts based on common data in your database 
+- open DuckDB databases and CSV, TSV, Parquet, JSON or Arrow files;
+- build linked maps, charts and tables, where a brush in one view filters the
+  others;
+- launch the workspace from R, or combine Mosaic views and deck.gl layers in R
+  with `mosaic_gl()`.
 
 ## Installation
 
@@ -49,13 +48,31 @@ dbVisuals works with two companion packages on CRAN:
 - [rDeckgl](https://CRAN.R-project.org/package=rDeckgl) - R interface to deck.gl for WebGL visualizations
 - [rMosaic](https://CRAN.R-project.org/package=rMosaic) - R interface to Mosaic for interactive linked views
 
+## Web app or R?
+
+The same workspace runs in two places.
+
+- **The web app** at <https://dbvisuals.pages.dev> runs entirely in your
+  browser on DuckDB-WASM. Open DuckDB, CSV, TSV, Parquet, JSON or Arrow files
+  from your computer; they are read in the browser and never uploaded. Nothing
+  needs to be installed, and the data you can explore is limited by the
+  browser's memory.
+- **`launchBrowser()` in R** serves the workspace from your own machine. Called
+  with no database, it works like the web app. Called with `db_path` (or an open
+  DuckDB connection), a background R process runs native DuckDB on that
+  database file and the workspace queries it there, so you can explore
+  databases larger than the browser could hold. The local server listens only
+  on `127.0.0.1` and uses a per-session token.
+
+Either way, files you open in the browser stay in the browser; they are not
+copied into your R session.
+
 ## Quick Start
 
 ### Launch with In-Memory Database
 
-Without a native database file, the workspace uses browser-local DuckDB-WASM
-and the bundled demonstration tables. Imported files stay in the browser and
-are not synchronized back into the R session.
+Without a database file, the workspace runs on DuckDB-WASM in the browser, with
+the bundled demonstration tables.
 
 ```{r}
 library(dbVisuals)
@@ -66,7 +83,8 @@ dashboard <- launchBrowser()
 
 ### Launch with GiottoDB Database
 
-For spatial data analysis, connect to a GiottoDB database from (Giotto Suite)[https://giottosuite.com]
+For spatial data analysis, connect to a GiottoDB database from
+[Giotto Suite](https://giottosuite.com).
 
 ```{r}
 library(dbVisuals)
@@ -82,9 +100,11 @@ dbDisconnect(con, shutdown = TRUE)
 
 # Launch dbVisuals
 dashboard <- launchBrowser(db_path = "my_spatial_data.duckdb")
-
-# Explore your spatial data with SQL queries and visualizations
 ```
+
+Close every connection that writes to a database before opening it with
+`launchBrowser()`. To change the database from R, stop the workspace first,
+make your changes, close the connection and launch again.
 
 ### Cleanup
 
@@ -94,94 +114,25 @@ When you're done, clean up the background processes:
 stop_sqlrooms(dashboard)
 ```
 
-## What You Can Do in dbVisuals
+## Ports and running two databases
 
-### 1. SQL Queries on Spatial Data
-
-Run SQL queries directly on your GiottoDB tables:
-
-```sql
--- Query your GiottoDB tables
-SELECT * FROM gdb_cell_rna_raw LIMIT 10;
-
--- Aggregate spatial expression data
-SELECT cell_ID, COUNT(*) as gene_count
-FROM gdb_cell_rna_normalized
-GROUP BY cell_ID;
-
--- Spatial polygon queries
-SELECT poly_ID, ST_Area(geom) as area
-FROM gdb_poly_cell;
-```
-
-### 2. Interactive Visualizations
-
-Create deck.gl and Mosaic visualizations using the built-in tools in dbVisuals.
-Use Add Chart for Spatial Map and Table as well as ordinary Mosaic charts.
-For native R-backed data, prepare the database and close its writer connection
-before launching. Stop the workspace before modifying the file from R, then
-close the connection and relaunch. Concurrent cross-process writes are not promised.
-
-## Advanced Configuration
-
-### Custom Ports
-
-Specify custom ports if defaults are in use:
+The workspace uses ports 3001 (R server) and 5173 (browser app). If either is
+in use, choose others:
 
 ```{r}
-dashboard <- launchBrowser(
-  db_path = "my_data.duckdb",
-  port = 3002,           # R server port
-  frontend_port = 5174,  # Frontend port
-  browser = TRUE         # Auto-open browser
-)
+dashboard <- launchBrowser(db_path = "my_data.duckdb",
+                           port = 3002, frontend_port = 5174)
 ```
 
-### One instance at a time
-
-The running server and front end are tracked in a single package-level slot, so
-launching a second workspace stops the first one even when the ports differ:
-after the second `launchBrowser()` below, port 5173 is no longer served and
-`stop_sqlrooms(dashboard1)` reports "No running SQL Rooms processes found".
-
-```{r}
-dashboard1 <- launchBrowser(db_path = "project1.duckdb",
-                            port = 3001, frontend_port = 5173)
-
-# This replaces dashboard1 rather than running alongside it.
-dashboard2 <- launchBrowser(db_path = "project2.duckdb",
-                            port = 3002, frontend_port = 5174)
-```
-
-To work with two databases at once, run them from two separate R sessions.
-
-## Troubleshooting
-
-### Ports Already in Use
-
-If you see connection errors, try different ports:
-
-```{r}
-launchBrowser(port = 3002, frontend_port = 5174)
-```
-
-### Missing Dependencies
-
-Install recommended packages for full functionality:
-
-```{r}
-install_dbvisuals_deps()
-```
-
-Or manually:
-
-```{r}
-install.packages(c("DBI", "duckdb", "shiny", "rDeckgl", "rMosaic"))
-```
+Only one workspace runs per R session: a second `launchBrowser()` replaces the
+first, even on different ports. To work with two databases at once, use two R
+sessions.
 
 ## Next Steps
 
-- Reproduce the published figures and see every entry point:
+- Build linked views in R:
+  `vignette("visualization-examples", package = "dbVisuals")`
+- Reproduce the published figures:
   `vignette("reproducing-paper-figures", package = "dbVisuals")`
 - Explore the function reference: `?launchBrowser`
 - Learn about data export: `?sqlrooms_export_table`

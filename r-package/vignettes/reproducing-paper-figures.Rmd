@@ -15,23 +15,11 @@ knitr::opts_chunk$set(
 )
 ```
 
-This vignette covers the two things people ask for first: how to reproduce the
-visualizations published in the dbVisuals Application Note, and how to start each
-of the package's entry points.
+This vignette shows how to reproduce the visualizations published in the
+dbVisuals Application Note. For a general introduction, see
+`vignette("getting-started", package = "dbVisuals")`.
 
 ## Install
-
-The rendering packages and database dependencies come from CRAN.
-
-```{r}
-install.packages(c("DBI", "duckdb", "rDeckgl", "rMosaic"))
-
-# or let the package do it
-dbVisuals::install_dbvisuals_deps()
-```
-
-Install `dbVisuals` from CRAN, or the development version from the dbverse
-r-universe:
 
 ```{r}
 install.packages("dbVisuals")
@@ -40,213 +28,48 @@ install.packages("dbVisuals")
 install.packages("dbVisuals",
                  repos = c("https://dbverse-org.r-universe.dev",
                            "https://cloud.r-project.org"))
+
+# rendering packages and database dependencies, from CRAN
+install.packages(c("DBI", "duckdb", "rDeckgl", "rMosaic"))
 ```
 
 The figures and benchmarks in the Application Note were made with `dbVisuals`
 0.1.0 (commit `7f6eb52` of <https://github.com/dbverse-org/dbVisuals>).
 
-## Entry point 1 — the SQLRooms browser workspace
-
-`launchBrowser()` starts a local server plus the packaged front end and opens a
-browser. Point it at a closed DuckDB file for authenticated native queries, or
-omit `db_path` for standalone DuckDB-WASM with the bundled demonstration tables.
-Files imported in standalone mode stay in the browser, not in the R session.
-
-```{r}
-library(dbVisuals)
-
-# standalone browser workspace
-launchBrowser()
-
-# an existing DuckDB / GiottoDB file
-launchBrowser(db_path = "WTA_Preview_FFPE_Breast_Cancer_xenium.duckdb")
-
-stop_sqlrooms()
-```
-
-The frontend and, when needed, the native API run in background processes, so
-the R session stays usable; `daemon` is retained for compatibility. Ports default to
-3001 (server) and 5173 (front end). Only one workspace runs at a time — a second
-`launchBrowser()` replaces the first even on different ports — so use two R
-sessions if you need two databases side by side.
-
-Prepare and close a native database before launching. To change it from R,
-stop the workspace, modify the file, close the writer and relaunch. DuckDB's
-cross-process file locks do not guarantee concurrent live writes.
-
-```{r}
-db <- file.path(tempdir(), "workspace.duckdb")
-con <- DBI::dbConnect(duckdb::duckdb(), db)
-DBI::dbWriteTable(con, "gdb_cell_metadata",
-                  data.frame(x = rnorm(200), y = rnorm(200)))
-DBI::dbDisconnect(con, shutdown = TRUE)
-
-launchBrowser(db_path = db, browser = FALSE)
-
-stop_sqlrooms()
-```
-
-## Entry point 2 — R-side linked views with `mosaic_gl()`
-
-`mosaic_gl()` is an htmlwidget: Mosaic views and GPU deck.gl layers in one
-browser scope, over a single DuckDB-WASM coordinator and a single shared
-selection, so brushing any panel filters all of them. No server, no browser
-workspace — it renders in the RStudio viewer, a knitted document, or Shiny.
-
-A self-contained example that needs no database:
-
-```{r}
-library(dbVisuals)
-
-pts <- data.frame(x = rnorm(5000), y = rnorm(5000))
-
-spec <- mgl_spec(
-  data   = list(pts = mgl_data(type = "table", df = pts)),
-  params = list(sel = list(select = "crossfilter")),
-  vconcat = list(
-    list(
-      plot = list(
-        list(mark = "dot", data = list(from = "pts", filterBy = "$sel"),
-             x = "x", y = "y"),
-        list(select = "intervalX", as = "$sel")
-      ),
-      width = 800, height = 160
-    ),
-    mgl_deckgl(
-      id        = "map",
-      filter_by = "$sel",
-      width     = 800, height = 460,
-      layers = list(list(
-        `@@type`         = "ScatterplotLayer",
-        id               = "pts",
-        data             = "pts",
-        getPosition      = "@@=[x, y]",
-        getFillColor     = c(100L, 180L, 255L, 220L),
-        getRadius        = 3,
-        radiusUnits      = "pixels",
-        coordinateSystem = "@@#COORDINATE_SYSTEM.CARTESIAN",
-        positionFormat   = "XY"
-      ))
-    )
-  )
-)
-
-mosaic_gl(spec)
-```
-
-Data reaches the browser as Arrow IPC, not JSON. `mgl_data(type = "table")`
-serializes a data frame; `mgl_data(type = "duckdb", query = ...)` keeps the data
-in the database and ships only the query result, which is what you want for
-anything large:
-
-```{r}
-con <- DBI::dbConnect(duckdb::duckdb(), "my.duckdb", read_only = TRUE)
-
-spec <- mgl_spec(
-  data = list(
-    cells = mgl_data(
-      type  = "duckdb",
-      query = "SELECT x, y, leiden_clus FROM gdb_cell_metadata"
-    ),
-    polys = mgl_data(
-      type   = "duckdb",
-      # Include the key column: the WKB polygon encoder needs both a key
-      # (cell_ID / poly_ID / id) and a geometry column, otherwise it falls
-      # back to plain Arrow and the polygon layer is dropped at render time.
-      query  = "SELECT cell_ID, ST_AsWKB(geom) AS geometry FROM gdb_cell_polygons",
-      format = "geoarrow"
-    )
-  ),
-  vconcat = list(
-    mgl_deckgl(
-      id = "insitu", width = 800, height = 560,
-      layers = list(
-        list(
-          `@@type`         = "GeoArrowPolygonLayer",
-          id               = "polys",
-          data             = "polys",
-          geometryColumn   = "geometry",
-          getFillColor     = c(157L, 78L, 221L, 90L),
-          stroked          = FALSE,
-          coordinateSystem = "@@#COORDINATE_SYSTEM.CARTESIAN",
-          positionFormat   = "XY"
-        ),
-        list(
-          `@@type`         = "ScatterplotLayer",
-          id               = "cells",
-          data             = "cells",
-          getPosition      = "@@=[x, y]",
-          getFillColor     = c(30L, 41L, 59L, 200L),
-          getRadius        = 2,
-          radiusUnits      = "pixels",
-          coordinateSystem = "@@#COORDINATE_SYSTEM.CARTESIAN",
-          positionFormat   = "XY"
-        )
-      )
-    )
-  )
-)
-
-mosaic_gl(spec, con = con)
-```
-
-Passing `con` also lets the widget issue follow-up queries against your R-side
-DuckDB while you interact, instead of materializing everything up front. Any
-spatial / nanoarrow / geoarrow extensions already loaded on that connection are
-reused.
-
-In Shiny use the pair `mosaic_glOutput()` / `renderMosaic_gl()`.
-
-## Entry point 3 — export a spec back out
-
-Specs built in the browser workspace can be pulled back into R as an htmlwidget
-for `rMosaic` or `rDeckgl`:
-
-```{r}
-dbvisuals_export_htmlwidget(
-  spec,
-  "panel.html",
-  engine = "rMosaic",
-  data   = list(pts = pts)
-)
-```
-
 ## Reproducing the published figures
 
 The published in-situ panels need a GiottoDB DuckDB database holding cell
-polygons, cell centroids and transcript coordinates — the Application Note uses
+polygons, cell centroids and transcript coordinates. The Application Note uses
 the 10x Genomics Atera In Situ Gene Expression, FFPE Human Breast Cancer preview
-dataset on the Xenium platform.
+dataset.
 
-The spec patterns are documented in `vignette("visualization-examples",
-package = "dbVisuals")`. The two scripts below are in the repository under
-`r-package/examples/`. They are repository examples, not installed R help
-examples, and the large public input datasets are not bundled. Use the same
-release for the installed package and the cloned examples.
+The two scripts below are in the repository under `r-package/examples/`. They
+are not installed with the package, and the large public input datasets are not
+bundled. Use the same release for the installed package and the cloned scripts.
 
 | Script | Renders |
 | --- | --- |
 | `03_dimred_concat.R` | UMAP / PCA dimension pairs linked to a `leiden_clus` bar |
-| `06_in_situ_zoom_overlay_transcripts_interactive.R` | **the published panel** — interactive ROI selection |
+| `06_in_situ_zoom_overlay_transcripts_interactive.R` | **the published panel**, with interactive ROI selection |
 
-`03_dimred_concat.R` needs the separately installed `Giotto` and `GiottoData`
-packages and downloads the mini Visium object. Install these using the Giotto
-Suite installation instructions before sourcing it. It needs no local database.
-
-These scripts are not installed with the package, so run them from a clone of the
-repository with `r-package/` as the working directory:
+Run them from a clone of the repository, with `r-package/` as the working
+directory:
 
 ```bash
 git clone --branch v0.1.0 https://github.com/dbverse-org/dbVisuals.git
 ```
+
+`03_dimred_concat.R` needs the `Giotto` and `GiottoData` packages (see the
+Giotto Suite installation instructions) and downloads the mini Visium object. It
+needs no local database:
 
 ```r
 setwd("path/to/dbVisuals/r-package")
 source("examples/03_dimred_concat.R")
 ```
 
-For the in-situ scripts, point the environment at your data and run them from an
-interactive session:
+For the in-situ script, point the environment at your data and run it from an
+interactive R session:
 
 ```r
 setwd("path/to/dbVisuals/r-package")
@@ -255,36 +78,18 @@ Sys.setenv(DBLENS_TRANSCRIPT_FILE = "/path/to/transcripts.parquet")
 source("examples/06_in_situ_zoom_overlay_transcripts_interactive.R")
 ```
 
-Neither variable is required to be set if the files sit in the working directory
-under their default names. Optional overrides: `DBLENS_TRANSCRIPT_TABLE` to read
-transcripts from a table inside the database instead of a file, and
-`DBLENS_ROI_CELL_ID` to centre the region of interest on a specific cell.
+Neither variable is needed if the files sit in the working directory under their
+default names. Optional overrides: `DBLENS_TRANSCRIPT_TABLE` reads transcripts
+from a table inside the database instead of a file, and `DBLENS_ROI_CELL_ID`
+centres the region of interest on a specific cell.
 
-Script 06 starts a Shiny app where dragging the `select`
-control re-queries just the transcripts inside the chosen region, and `detail`
-picks the nested sub-region. Run it from an interactive R session — under
-`Rscript` it prints the widget instead of launching Shiny. The published panel is
-a full-window capture of the resulting three-view layout.
-Missing expression or cell-type annotations are displayed as unavailable, not
-replaced with simulated measurements. The panel demonstrates spatial navigation,
-not a new biological clustering result.
-
-## Rebuilding the widget bundle
-
-The pre-built browser bundle ships in `inst/htmlwidgets/`, so none of the above
-needs `npm`. To rebuild it from source:
-
-```bash
-cd inst/viewer-src
-npm ci
-npm run build
-```
+Script 06 starts a Shiny app: dragging the `select` control re-queries only the
+transcripts inside the chosen region, and `detail` picks a nested sub-region.
+Under `Rscript` it prints the widget instead of launching Shiny. The published
+panel is a full-window capture of the resulting three-view layout. Missing
+expression or cell-type annotations are shown as unavailable, not simulated.
 
 ## See also
 
 `vignette("visualization-examples", package = "dbVisuals")` builds the same
 linked-view patterns from self-contained data, with no database required.
-
-Versions of deck.gl, Mosaic, GeoArrow and Arrow are held to one contract across
-this package and the front end; see `versions.json` at the repository root. From that root, run
-`npm --prefix frontend/sqlrooms-ai run test:versions` to check the contract.

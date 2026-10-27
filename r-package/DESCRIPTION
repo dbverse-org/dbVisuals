@@ -1,17 +1,18 @@
 Package: dbVisuals
 Type: Package
-Title: Database-Powered Visualizations for Spatial Data
+Title: Database-Powered Visualizations for Tabular Data
 Version: 0.1.0
 Authors@R: c(
     person("Edward C.", "Ruiz", , "ecr7407@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-9174-5387")),
     person("Timur", "Rizvanov", , "timurr@bu.edu", role = "aut"),
-    person("Ruben", "Dries", role = "rev"),
+    person("Ruben", "Dries", , "rubendries@gmail.com", role = c("aut", "rev")),
     person("National Human Genome Research Institute", role = "fnd",
            comment = c(grant = "1R01HG014487-01"))
   )
-Description: Interactive, linked visualizations of spatial data held in
-    'DuckDB' databases, such as 'GiottoDB' spatial omics datasets. A
+Description: Interactive, linked visualizations of tabular data held in
+    'DuckDB' databases and data files, including spatial data such as
+    'GiottoDB' spatial omics datasets. A
     browser workspace built on 'SQL Rooms' creates and links maps, tables and
     charts without code, and an 'htmlwidgets' viewer combines 'Mosaic' views
     and 'deck.gl' layers over one 'DuckDB-WASM' instance and one selection, so
