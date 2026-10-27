@@ -2,7 +2,7 @@ url: https://dbverse-org.github.io/dbVisuals/
 destination: pkgdown
 template:
   bootstrap: 5
-  bootswatch: flatly
+  light-switch: true
 
 home:
   title: "dbVisuals: Database-Powered Visualizations for Tabular Data"
@@ -20,7 +20,7 @@ authors:
 navbar:
   structure:
     left: [intro, reference, articles, news]
-    right: [search, webapp, github]
+    right: [search, webapp, github, lightswitch]
   components:
     webapp:
       text: Web App
