@@ -34,6 +34,8 @@
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
 <li><a class="dropdown-item" href="../articles/getting-started.html">Getting Started</a></li>
+    <li><a class="dropdown-item" href="../articles/visualization-examples.html">Linked visualization examples</a></li>
+    <li><a class="dropdown-item" href="../articles/reproducing-paper-figures.html">Reproducing the paper figures</a></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">News</a></li>
@@ -42,7 +44,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
 </form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/dbverse-org/dbVisuals2" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/dbverse-org/dbVisuals" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -59,7 +61,7 @@
       <h1>Getting Started with dbVisuals</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/dbverse-org/dbVisuals2/blob/main/vignettes/getting-started.Rmd" class="external-link"><code>vignettes/getting-started.Rmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/dbverse-org/dbVisuals/blob/main/vignettes/getting-started.Rmd" class="external-link"><code>vignettes/getting-started.Rmd</code></a></small>
       <div class="d-none name"><code>getting-started.Rmd</code></div>
     </div>
 
@@ -68,9 +70,9 @@
 <div class="section level2">
 <h2 id="introduction">Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
 </h2>
-<p>dbVisuals is a minimal <a href="https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop" class="external-link">REPL</a>
-and visualization UI built on <a href="https://sqlrooms.org/" class="external-link">SQLRooms</a> for interactive for
-interactive exploration of <a href="https://github.com/dbverse-org" class="external-link">dbverse</a> objects.</p>
+<p>dbVisuals is a Canvas visualization workspace built on <a href="https://sqlrooms.org/" class="external-link">SQLRooms</a> for interactive exploration of
+<a href="https://github.com/dbverse-org" class="external-link">dbverse</a> data. This
+submission branch excludes AI and arbitrary R-code execution.</p>
 <div class="section level3">
 <h3 id="dbvisuals-features">dbVisuals features<a class="anchor" aria-label="anchor" href="#dbvisuals-features"></a>
 </h3>
@@ -81,8 +83,6 @@ for exploration</li>
 <li>
 <strong>SQL Editor</strong> - Run queries on database-backed
 objects</li>
-<li>
-<strong>R Console</strong> - Execute R code interactively</li>
 <li>
 <strong>Hardware-accelerated Visualizations</strong> -
 High-performance WebGL spatial rendering using <a href="https://deck.gl/" class="external-link">deck.gl</a>
@@ -102,11 +102,11 @@ common data in your database</li>
 <h3 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h3>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Install from GitHub</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"dbverse-org/dbVisuals2"</span>, subdir <span class="op">=</span> <span class="st">"r-package"</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="co"># Install the reviewed local checkout; this repository is still private.</span></span>
+<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_local</span><span class="op">(</span><span class="st">"r-package"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Optional: Install all recommended dependencies</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/dbverse-org/dbVisuals2" class="external-link">dbVisuals</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/dbverse-org/dbVisuals" class="external-link">dbVisuals</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="../reference/install_dbvisuals_deps.html">install_dbvisuals_deps</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>dbVisuals automatically provides access to:</p>
 <ul>
@@ -124,11 +124,13 @@ interface to Mosaic for interactive linked views</li>
 <div class="section level4">
 <h4 id="launch-with-in-memory-database">Launch with In-Memory Database<a class="anchor" aria-label="anchor" href="#launch-with-in-memory-database"></a>
 </h4>
-<p>The simplest way to start is with an empty in-memory database:</p>
+<p>Without a native database file, the workspace uses browser-local
+DuckDB-WASM and the bundled demonstration tables. Imported files stay in
+the browser and are not synchronized back into the R session.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/dbverse-org/dbVisuals2" class="external-link">dbVisuals</a></span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/dbverse-org/dbVisuals" class="external-link">dbVisuals</a></span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Launch dbVisuals with an empty database</span></span>
+<span><span class="co"># Launch the standalone browser workspace</span></span>
 <span><span class="va">dashboard</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level4">
@@ -137,7 +139,7 @@ interface to Mosaic for interactive linked views</li>
 <p>For spatial data analysis, connect to a GiottoDB database from
 (Giotto Suite)[<a href="https://giottosuite.com" class="external-link uri">https://giottosuite.com</a>]</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/dbverse-org/dbVisuals2" class="external-link">dbVisuals</a></span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/dbverse-org/dbVisuals" class="external-link">dbVisuals</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">GiottoDB</span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">GiottoData</span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://r.duckdb.org/" class="external-link">duckdb</a></span><span class="op">)</span></span>
@@ -181,30 +183,14 @@ interface to Mosaic for interactive linked views</li>
 <span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a><span class="kw">FROM</span> gdb_poly_cell;</span></code></pre></div>
 </div>
 <div class="section level4">
-<h4 id="r-code-execution">2. R Code Execution<a class="anchor" aria-label="anchor" href="#r-code-execution"></a>
-</h4>
-<p>Execute R code directly in dbVisuals cells:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Inside dbVisuals R cell:</span></span>
-<span></span>
-<span><span class="co"># Load packages</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">GiottoDB</span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://r.duckdb.org/" class="external-link">duckdb</a></span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Query and analyze</span></span>
-<span><span class="va">con</span> <span class="op">&lt;-</span> <span class="fu">dbConnect</span><span class="op">(</span><span class="fu">duckdb</span><span class="op">(</span><span class="op">)</span>, <span class="st">"my_spatial_data.duckdb"</span><span class="op">)</span></span>
-<span><span class="va">data</span> <span class="op">&lt;-</span> <span class="fu">dbReadTable</span><span class="op">(</span><span class="va">con</span>, <span class="st">"gdb_cell_rna_raw"</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">data</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Export results back to dbVisuals</span></span>
-<span><span class="va">result_df</span> <span class="op">&lt;-</span> <span class="fu">some_analysis</span><span class="op">(</span><span class="va">data</span><span class="op">)</span></span>
-<span><span class="fu"><a href="../reference/sqlrooms_export_table.html">sqlrooms_export_table</a></span><span class="op">(</span><span class="st">"analysis_results"</span>, <span class="va">result_df</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level4">
-<h4 id="interactive-visualizations">3. Interactive Visualizations<a class="anchor" aria-label="anchor" href="#interactive-visualizations"></a>
+<h4 id="interactive-visualizations">2. Interactive Visualizations<a class="anchor" aria-label="anchor" href="#interactive-visualizations"></a>
 </h4>
 <p>Create deck.gl and Mosaic visualizations using the built-in tools in
-dbVisuals.</p>
+dbVisuals. Use Add Chart for Spatial Map and Table as well as ordinary
+Mosaic charts. For native R-backed data, prepare the database and close
+its writer connection before launching. Stop the workspace before
+modifying the file from R, then close the connection and relaunch.
+Concurrent cross-process writes are not promised.</p>
 </div>
 </div>
 <div class="section level3">
@@ -214,7 +200,7 @@ dbVisuals.</p>
 <h4 id="custom-ports">Custom Ports<a class="anchor" aria-label="anchor" href="#custom-ports"></a>
 </h4>
 <p>Specify custom ports if defaults are in use:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dashboard</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span></span>
 <span>  db_path <span class="op">=</span> <span class="st">"my_data.duckdb"</span>,</span>
 <span>  port <span class="op">=</span> <span class="fl">3002</span>,           <span class="co"># R server port</span></span>
@@ -223,23 +209,23 @@ dbVisuals.</p>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level4">
-<h4 id="multiple-instances">Multiple Instances<a class="anchor" aria-label="anchor" href="#multiple-instances"></a>
+<h4 id="one-instance-at-a-time">One instance at a time<a class="anchor" aria-label="anchor" href="#one-instance-at-a-time"></a>
 </h4>
-<p>Run multiple dbVisuals instances with different databases:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Instance 1</span></span>
-<span><span class="va">dashboard1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span></span>
-<span>  db_path <span class="op">=</span> <span class="st">"project1.duckdb"</span>,</span>
-<span>  port <span class="op">=</span> <span class="fl">3001</span>,</span>
-<span>  frontend_port <span class="op">=</span> <span class="fl">5173</span></span>
-<span><span class="op">)</span></span>
+<p>The running server and front end are tracked in a single
+package-level slot, so launching a second workspace stops the first one
+even when the ports differ: after the second
+<code><a href="../reference/launchBrowser.html">launchBrowser()</a></code> below, port 5173 is no longer served and
+<code>stop_sqlrooms(dashboard1)</code> reports “No running SQL Rooms
+processes found”.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dashboard1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span>db_path <span class="op">=</span> <span class="st">"project1.duckdb"</span>,</span>
+<span>                            port <span class="op">=</span> <span class="fl">3001</span>, frontend_port <span class="op">=</span> <span class="fl">5173</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Instance 2 (different ports)</span></span>
-<span><span class="va">dashboard2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span></span>
-<span>  db_path <span class="op">=</span> <span class="st">"project2.duckdb"</span>,</span>
-<span>  port <span class="op">=</span> <span class="fl">3002</span>,</span>
-<span>  frontend_port <span class="op">=</span> <span class="fl">5174</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="co"># This replaces dashboard1 rather than running alongside it.</span></span>
+<span><span class="va">dashboard2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span>db_path <span class="op">=</span> <span class="st">"project2.duckdb"</span>,</span>
+<span>                            port <span class="op">=</span> <span class="fl">3002</span>, frontend_port <span class="op">=</span> <span class="fl">5174</span><span class="op">)</span></span></code></pre></div>
+<p>To work with two databases at once, run them from two separate R
+sessions.</p>
 </div>
 </div>
 <div class="section level3">
@@ -249,34 +235,35 @@ dbVisuals.</p>
 <h4 id="ports-already-in-use">Ports Already in Use<a class="anchor" aria-label="anchor" href="#ports-already-in-use"></a>
 </h4>
 <p>If you see connection errors, try different ports:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/launchBrowser.html">launchBrowser</a></span><span class="op">(</span>port <span class="op">=</span> <span class="fl">3002</span>, frontend_port <span class="op">=</span> <span class="fl">5174</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level4">
 <h4 id="missing-dependencies">Missing Dependencies<a class="anchor" aria-label="anchor" href="#missing-dependencies"></a>
 </h4>
 <p>Install recommended packages for full functionality:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/install_dbvisuals_deps.html">install_dbvisuals_deps</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>Or manually:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"DBI"</span>, <span class="st">"duckdb"</span>, <span class="st">"shiny"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"TiRizvanov/rDeckgl"</span><span class="op">)</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"TiRizvanov/rMosaic"</span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"DBI"</span>, <span class="st">"duckdb"</span>, <span class="st">"shiny"</span>, <span class="st">"rDeckgl"</span>, <span class="st">"rMosaic"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
 </div>
 <div class="section level3">
 <h3 id="next-steps">Next Steps<a class="anchor" aria-label="anchor" href="#next-steps"></a>
 </h3>
 <ul>
+<li>Reproduce the published figures and see every entry point:
+<code><a href="../articles/reproducing-paper-figures.html">vignette("reproducing-paper-figures", package = "dbVisuals")</a></code>
+</li>
 <li>Explore the function reference: <code><a href="../reference/launchBrowser.html">?launchBrowser</a></code>
 </li>
 <li>Learn about data export: <code><a href="../reference/sqlrooms_export_table.html">?sqlrooms_export_table</a></code>
 </li>
-<li>Check out GiottoDB for spatial omics analysis: <a href="https://github.com/dbverse-org/GiottoDB" class="external-link">GiottoDB
+<li>Check out GiottoDB for spatial omics analysis: <a href="https://github.com/giotto-suite/GiottoDB" class="external-link">GiottoDB
 documentation</a>
 </li>
-<li>Report issues: <a href="https://github.com/dbverse-org/dbVisuals2/issues" class="external-link">GitHub
+<li>Report issues: <a href="https://github.com/dbverse-org/dbVisuals/issues" class="external-link">GitHub
 Issues</a>
 </li>
 </ul>
@@ -289,7 +276,7 @@ Issues</a>
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Timur Rizvanov.</p>
+  <p>Developed by Edward C. Ruiz, Timur Rizvanov, National Human Genome Research Institute.</p>
 </div>
 
 <div class="pkgdown-footer-right">

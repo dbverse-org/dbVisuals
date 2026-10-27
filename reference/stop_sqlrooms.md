@@ -1,7 +1,7 @@
 # Stop SQL Rooms Processes
 
 Stops SQL Rooms background processes started by \[launchBrowser()\].
-This helper stops both the R execution server and the frontend server.
+This helper stops both the R database server and the frontend server.
 
 ## Usage
 

@@ -1,44 +1,41 @@
 # Install Complete dbVisuals Dependencies
 
 Installs all recommended dependencies for dbVisuals to enable full SQL
-Rooms functionality. This installs database packages (DBI, duckdb) from
-CRAN, and the optional visualization packages (rDeckgl, rMosaic) from
-GitHub.
+Rooms functionality. Everything comes from CRAN: the database packages
+(DBI, duckdb) and the visualization backends (rDeckgl, rMosaic).
 
 ## Usage
 
 ``` r
-install_dbvisuals_deps(ask = interactive())
+install_dbvisuals_deps(ask = TRUE)
 ```
 
 ## Arguments
 
 - ask:
 
-  Logical. Ask the user for confirmation before installing in
-  interactive sessions. Defaults to \`interactive()\`, so
-  non-interactive sessions must pass \`ask = FALSE\` explicitly to
-  proceed.
+  Logical. Ask the user for confirmation before installing. Defaults to
+  \`TRUE\`: interactive sessions are prompted, and non-interactive
+  sessions install nothing unless the caller passes \`ask = FALSE\`
+  explicitly.
 
 ## Value
 
 Invisibly returns \`TRUE\` if all installations succeeded, \`FALSE\`
-otherwise (e.g., user declined, \`remotes\` not available,
-non-interactive).
+otherwise (e.g., the user declined, or a non-interactive session).
 
 ## Details
 
-This function installs:
+This function installs, all from CRAN:
 
-- CRAN packages: DBI, duckdb
+- DBI, duckdb
 
-- GitHub packages: rDeckgl, rMosaic (from TiRizvanov)
+- rDeckgl, rMosaic
 
 The function checks which packages are already installed and only
-installs missing ones. Requires the 'remotes' package for GitHub
-installations. In interactive sessions the user is asked to confirm
-before any installation starts; in non-interactive sessions the function
-aborts with a message.
+installs missing ones. In interactive sessions the user is asked to
+confirm before any installation starts; in non-interactive sessions the
+function aborts with a message.
 
 ## Examples
 

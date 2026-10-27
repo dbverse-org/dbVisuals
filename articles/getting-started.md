@@ -2,18 +2,16 @@
 
 ## Introduction
 
-dbVisuals is a minimal
-[REPL](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop)
-and visualization UI built on [SQLRooms](https://sqlrooms.org/) for
-interactive for interactive exploration of
-[dbverse](https://github.com/dbverse-org) objects.
+dbVisuals is a Canvas visualization workspace built on
+[SQLRooms](https://sqlrooms.org/) for interactive exploration of
+[dbverse](https://github.com/dbverse-org) data. This submission branch
+excludes AI and arbitrary R-code execution.
 
 ### dbVisuals features
 
 - **Dropzone** - Drag and drop files directly into the UI for
   exploration
 - **SQL Editor** - Run queries on database-backed objects
-- **R Console** - Execute R code interactively
 - **Hardware-accelerated Visualizations** - High-performance WebGL
   spatial rendering using [deck.gl](https://deck.gl/)
 - **Interactive Linked Views** - Create interactive linked
@@ -26,8 +24,8 @@ interactive for interactive exploration of
 
 ``` r
 
-# Install from GitHub
-devtools::install_github("dbverse-org/dbVisuals2", subdir = "r-package")
+# Install the reviewed local checkout; this repository is still private.
+remotes::install_local("r-package")
 
 # Optional: Install all recommended dependencies
 library(dbVisuals)
@@ -45,13 +43,15 @@ dbVisuals automatically provides access to:
 
 #### Launch with In-Memory Database
 
-The simplest way to start is with an empty in-memory database:
+Without a native database file, the workspace uses browser-local
+DuckDB-WASM and the bundled demonstration tables. Imported files stay in
+the browser and are not synchronized back into the R session.
 
 ``` r
 
 library(dbVisuals)
 
-# Launch dbVisuals with an empty database
+# Launch the standalone browser workspace
 dashboard <- launchBrowser()
 ```
 
@@ -108,32 +108,14 @@ SELECT poly_ID, ST_Area(geom) as area
 FROM gdb_poly_cell;
 ```
 
-#### 2. R Code Execution
-
-Execute R code directly in dbVisuals cells:
-
-``` r
-
-# Inside dbVisuals R cell:
-
-# Load packages
-library(GiottoDB)
-library(duckdb)
-
-# Query and analyze
-con <- dbConnect(duckdb(), "my_spatial_data.duckdb")
-data <- dbReadTable(con, "gdb_cell_rna_raw")
-summary(data)
-
-# Export results back to dbVisuals
-result_df <- some_analysis(data)
-sqlrooms_export_table("analysis_results", result_df)
-```
-
-#### 3. Interactive Visualizations
+#### 2. Interactive Visualizations
 
 Create deck.gl and Mosaic visualizations using the built-in tools in
-dbVisuals.
+dbVisuals. Use Add Chart for Spatial Map and Table as well as ordinary
+Mosaic charts. For native R-backed data, prepare the database and close
+its writer connection before launching. Stop the workspace before
+modifying the file from R, then close the connection and relaunch.
+Concurrent cross-process writes are not promised.
 
 ### Advanced Configuration
 
@@ -151,26 +133,27 @@ dashboard <- launchBrowser(
 )
 ```
 
-#### Multiple Instances
+#### One instance at a time
 
-Run multiple dbVisuals instances with different databases:
+The running server and front end are tracked in a single package-level
+slot, so launching a second workspace stops the first one even when the
+ports differ: after the second
+[`launchBrowser()`](https://dbverse-org.github.io/dbVisuals/reference/launchBrowser.md)
+below, port 5173 is no longer served and `stop_sqlrooms(dashboard1)`
+reports “No running SQL Rooms processes found”.
 
 ``` r
 
-# Instance 1
-dashboard1 <- launchBrowser(
-  db_path = "project1.duckdb",
-  port = 3001,
-  frontend_port = 5173
-)
+dashboard1 <- launchBrowser(db_path = "project1.duckdb",
+                            port = 3001, frontend_port = 5173)
 
-# Instance 2 (different ports)
-dashboard2 <- launchBrowser(
-  db_path = "project2.duckdb",
-  port = 3002,
-  frontend_port = 5174
-)
+# This replaces dashboard1 rather than running alongside it.
+dashboard2 <- launchBrowser(db_path = "project2.duckdb",
+                            port = 3002, frontend_port = 5174)
 ```
+
+To work with two databases at once, run them from two separate R
+sessions.
 
 ### Troubleshooting
 
@@ -196,18 +179,18 @@ Or manually:
 
 ``` r
 
-install.packages(c("DBI", "duckdb", "shiny"))
-devtools::install_github("TiRizvanov/rDeckgl")
-devtools::install_github("TiRizvanov/rMosaic")
+install.packages(c("DBI", "duckdb", "shiny", "rDeckgl", "rMosaic"))
 ```
 
 ### Next Steps
 
+- Reproduce the published figures and see every entry point:
+  [`vignette("reproducing-paper-figures", package = "dbVisuals")`](https://dbverse-org.github.io/dbVisuals/articles/reproducing-paper-figures.md)
 - Explore the function reference:
-  [`?launchBrowser`](https://dbverse-org.github.io/dbVisuals2/reference/launchBrowser.md)
+  [`?launchBrowser`](https://dbverse-org.github.io/dbVisuals/reference/launchBrowser.md)
 - Learn about data export:
-  [`?sqlrooms_export_table`](https://dbverse-org.github.io/dbVisuals2/reference/sqlrooms_export_table.md)
+  [`?sqlrooms_export_table`](https://dbverse-org.github.io/dbVisuals/reference/sqlrooms_export_table.md)
 - Check out GiottoDB for spatial omics analysis: [GiottoDB
-  documentation](https://github.com/dbverse-org/GiottoDB)
+  documentation](https://github.com/giotto-suite/GiottoDB)
 - Report issues: [GitHub
-  Issues](https://github.com/dbverse-org/dbVisuals2/issues)
+  Issues](https://github.com/dbverse-org/dbVisuals/issues)
