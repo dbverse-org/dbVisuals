@@ -47,57 +47,15 @@
 
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.1.0" id="dbvisuals-010">dbVisuals 0.1.0<a class="anchor" aria-label="anchor" href="#dbvisuals-010"></a></h2>
-<p>First CRAN release; it contains every change listed below for the development versions. Preparing it for CRAN:</p>
-<ul><li>
-<code><a href="../reference/install_dbvisuals_deps.html">install_dbvisuals_deps()</a></code> asks before installing by default (<code>ask = TRUE</code>); a non-interactive session installs nothing unless <code>ask = FALSE</code> is passed.</li>
-<li>Examples for <code><a href="../reference/mosaic_gl.html">mosaic_gl()</a></code>, <code><a href="../reference/mgl_spec.html">mgl_spec()</a></code>, <code><a href="../reference/mgl_data.html">mgl_data()</a></code>, <code><a href="../reference/mgl_deckgl.html">mgl_deckgl()</a></code>, <code><a href="../reference/mosaic_glOutput.html">mosaic_glOutput()</a></code> and <code><a href="../reference/renderMosaic_gl.html">renderMosaic_gl()</a></code>; <code><a href="../reference/mosaic_gl.html">?mosaic_gl</a></code> documents the internet access the viewer needs and how to secure its Shiny query channel.</li>
+<ul><li>First release.</li>
 <li>
-<code>inst/COPYRIGHTS</code> lists the bundled JavaScript libraries, their copyright holders and licences, and where the source of each bundle is.</li>
-<li>Authors, funding and repository URLs updated.</li>
-<li>Removed the unused MCP agent script (<code>inst/mcp/</code>); the agent API it called was removed from <code><a href="../reference/launchBrowser.html">launchBrowser()</a></code> in 0.1.0.9004.</li>
-</ul></div>
-    <div class="section level2">
-<h2 class="pkg-version" data-toc-text="0.1.0.9005" id="dbvisuals-0109005">dbVisuals 0.1.0.9005<a class="anchor" aria-label="anchor" href="#dbvisuals-0109005"></a></h2>
-<ul><li>Linked selections reach a <code><a href="../reference/mosaic_gl.html">mosaic_gl()</a></code> scatter layer as one byte per row: DuckDB-WASM evaluates the selection over the layer’s table in scan order and the viewer uses the result as the alpha mask, instead of fetching the key of every selected row and testing each row against a set of strings. The cost of a brush no longer grows with the number of selected rows, and the query runs at Mosaic’s low priority and uncached, so linked plots update first. The table’s scan order is checked once against the Arrow table the layer draws; polygon and row-object layers, and any table that fails the check, keep the key-based path.</li>
-<li>Viewer bundle 0.2.12.</li>
-</ul></div>
-    <div class="section level2">
-<h2 class="pkg-version" data-toc-text="0.1.0.9004" id="dbvisuals-0109004">dbVisuals 0.1.0.9004<a class="anchor" aria-label="anchor" href="#dbvisuals-0109004"></a></h2>
-<ul><li>
-<code><a href="../reference/mosaic_gl.html">mosaic_gl()</a></code> raises an error instead of flattening MultiPolygons or dropping holes in its polygon fallbacks.</li>
+<code><a href="../reference/launchBrowser.html">launchBrowser()</a></code> opens a browser workspace for DuckDB databases and data files (CSV, TSV, Parquet, JSON, Arrow) with linked maps, charts and tables.</li>
 <li>
-<code><a href="../reference/launchBrowser.html">launchBrowser()</a></code> prints the session link for a file-backed database, so <code>browser = FALSE</code> sessions can open it, and quotes database paths that contain an apostrophe.</li>
-<li>The browser workspace keeps native and standalone sessions under separate saved states.</li>
-<li>Viewer bundle 0.2.11.</li>
+<code><a href="../reference/mosaic_gl.html">mosaic_gl()</a></code> combines Mosaic views and deck.gl layers in one htmlwidget, sharing one DuckDB-WASM instance and one selection; DuckDB-backed sources are exported by DuckDB as Arrow or Parquet, without materialising rows in R.</li>
+<li>
+<code><a href="../reference/sqlrooms_export_table.html">sqlrooms_export_table()</a></code>, <code><a href="../reference/sqlrooms_register.html">sqlrooms_register()</a></code> and <code><a href="../reference/dbvisuals_export_htmlwidget.html">dbvisuals_export_htmlwidget()</a></code> move data and views between R and the browser.</li>
 </ul></div>
-    <div class="section level2">
-<h2 class="pkg-version" data-toc-text="0.1.0.9003" id="dbvisuals-0109003">dbVisuals 0.1.0.9003<a class="anchor" aria-label="anchor" href="#dbvisuals-0109003"></a></h2>
-<ul><li>Never disconnect the caller’s DuckDB connection. <code><a href="../reference/mosaic_gl.html">mosaic_gl()</a></code> never opens one, yet the Shiny session-ended handler closed it, which broke every later session in the same R process.</li>
-<li>Convert Arrow values that have no direct JavaScript number in the row fallback, so a DECIMAL column reaches the layer as numbers rather than raw Arrow objects, with one warning naming the column and type.</li>
-<li>Quote the data-source name and the registered file name in the Parquet rung, and make the registered name unique per widget.</li>
-<li>Report the real cause when a page saved with <code>selfcontained = TRUE</code> cannot resolve a file-transport payload.</li>
-<li>Scope an auto-created <code>data_dir</code> to the Shiny session and remove it when the session ends.</li>
-<li>Viewer bundle 0.2.10.</li>
-</ul></div>
-    <div class="section level2">
-<h2 class="pkg-version" data-toc-text="0.1.0.9002" id="dbvisuals-0109002">dbVisuals 0.1.0.9002<a class="anchor" aria-label="anchor" href="#dbvisuals-0109002"></a></h2>
-<ul><li>Ship <code>data_transport = "file"</code> payloads as an html dependency attachment of the widget, so each envelope’s relative URL resolves in the RStudio Viewer, in Shiny and after <code>htmlwidgets::saveWidget(selfcontained = FALSE)</code> into any directory, not only when the page is served from <code>data_dir</code>. <code>data_dir</code> now defaults to a session temporary directory.</li>
-<li>Refuse a DuckDB data node whose query holds more than one SQL statement: the <code>COPY</code> rung could not parse it and the record-batch rung would have executed every statement on the caller’s connection.</li>
-<li>Load the nanoarrow extension instead of installing it from the community repository, matching rDeckgl and rMosaic: a user-supplied connection keeps its extension set and no network call is made.</li>
-<li>Viewer bundle 0.2.9: data envelopes resolve their URL through the widget’s attachment links.</li>
-</ul></div>
-    <div class="section level2">
-<h2 class="pkg-version" data-toc-text="0.1.0.9001" id="dbvisuals-0109001">dbVisuals 0.1.0.9001<a class="anchor" aria-label="anchor" href="#dbvisuals-0109001"></a></h2>
-<ul><li>
-<code><a href="../reference/mosaic_gl.html">mosaic_gl()</a></code> gains <code>data_transport = c("auto", "inline", "file")</code> and <code>data_dir</code>. Query-backed sources (<code>mgl_data(type = "duckdb")</code>) are now exported by DuckDB itself through an export ladder (COPY … FORMAT ARROWS, then a record-batch stream via <code>arrow::write_ipc_stream()</code>, then COPY … FORMAT PARQUET); <code><a href="https://dbi.r-dbi.org/reference/dbGetQuery.html" class="external-link">DBI::dbGetQuery()</a></code> and <code><a href="https://dbi.r-dbi.org/reference/dbGetQueryArrow.html" class="external-link">DBI::dbGetQueryArrow()</a></code> are no longer used for these payloads. With <code>data_transport = "file"</code> the files stay in <code>data_dir</code> and the page fetches them by relative URL instead of carrying base64 bytes in the widget JSON. Each envelope records the rung used in <code>exportMethod</code>; <code>options(dbVisuals.export_methods = ...)</code> restricts the ladder for diagnostics.</li>
-<li>Viewer bundle 0.2.8: envelopes may carry <code>url</code> instead of <code>bytes</code>, Parquet envelopes are registered in DuckDB-WASM with <code>registerFileBuffer()</code>, and plain <code>ScatterplotLayer</code> panels bind cached Arrow tables as binary attributes (positions, colours, radius) with the linked selection applied as an alpha mask.</li>
-</ul></div>
-    <div class="section level2">
-<h2 class="pkg-version" data-toc-text="0.1.0.9000" id="dbvisuals-0109000">dbVisuals 0.1.0.9000<a class="anchor" aria-label="anchor" href="#dbvisuals-0109000"></a></h2>
-<ul><li>Development version following the 0.1.0 release.</li>
-</ul></div>
-  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
-    </nav></aside></div>
+  </main></div>
 
 
     <footer><div class="pkgdown-footer-left">
