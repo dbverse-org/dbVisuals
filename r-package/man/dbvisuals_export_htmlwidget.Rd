@@ -68,7 +68,7 @@ directory, and generated data files.
 \description{
 Renders a Mosaic or deck.gl specification through \code{rMosaic} or
 \code{rDeckgl} and saves the resulting htmlwidget to disk. This is intended for
-durable exports from dbVisuals specs; the live dbVisuals canvas continues to
+durable exports from dbVisuals specs; the live dbVisuals workspace continues to
 use the SQLRooms React runtime.
 }
 \examples{

@@ -11,7 +11,7 @@ inst/htmlwidgets/lib/mosaic_gl/mosaic_gl-bundle.js
   `npm ci && npm run build` in that directory reproduces the bundle.
 
 inst/sqlrooms/
-  The SQL Rooms Canvas web application served by launchBrowser(). It is
+  The dbVisuals web application (built on SQL Rooms) served by launchBrowser(). It is
   built from frontend/sqlrooms-ai/ in the package's source repository,
   https://github.com/dbverse-org/dbVisuals, where package.json and
   package-lock.json pin every dependency.

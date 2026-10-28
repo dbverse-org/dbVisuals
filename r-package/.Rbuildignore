@@ -1,6 +1,8 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^README\.Rmd$
+# README links to the Cloudflare-hosted web app, which CRAN's URL check cannot reach
+^README\.md$
 ^LICENSE\.md$
 ^\.github$
 ^\.git$
