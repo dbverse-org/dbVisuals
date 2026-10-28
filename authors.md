@@ -15,7 +15,7 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/dbverse-org/dbVisuals/blob/main/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/dbverse-org/dbVisuals/blob/main/r-package/DESCRIPTION)
 
 Ruiz E, Rizvanov T, Dries R (2026). *dbVisuals: Database-Powered
 Visualizations for Tabular Data*. R package version 0.1.0,
