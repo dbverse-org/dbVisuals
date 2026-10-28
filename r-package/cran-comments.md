@@ -5,7 +5,7 @@ This is a new submission.
 ## Test environments
 
 * local Ubuntu (WSL2), R 4.6.0, with the PDF manual
-* win-builder: R-release (4.6.1) and R-devel
+* win-builder: R-release (4.6.1) and R-devel (2026-10-26 r90766)
 * R-hub: linux, windows and macos-arm64 (R-devel), ubuntu-clang, ubuntu-gcc12,
   donttest, nosuggests, vnu
 * GitHub Actions: macOS and Windows (R release); Ubuntu (R devel, release and
@@ -13,12 +13,12 @@ This is a new submission.
 
 ## R CMD check results
 
-0 errors | 0 warnings | 1-2 NOTEs
+0 errors | 0 warnings | 1 NOTE
 
 * New submission.
 * "Possibly misspelled words in DESCRIPTION: omics". "Spatial omics" is the
   standard name of the field the 'GiottoDB' example comes from.
-* Installed size (reported on some platforms). See below.
+* Installed size may be reported on some platforms; see below.
 
 ## Installed size
 
