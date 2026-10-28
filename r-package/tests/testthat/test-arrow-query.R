@@ -27,7 +27,7 @@ test_that("arrow endpoint rewrites DuckDB information_schema column_type probes"
   ns <- asNamespace("dbVisuals")
   env <- get(".sqlrooms_env", envir = ns)
   db_path <- tempfile(fileext = ".duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = db_path)
+  con <- DBI::dbConnect(duckdb::duckdb(config = list(threads = "1")), dbdir = db_path)
   DBI::dbWriteTable(con, "cells", data.frame(x = 1:3, y = c("a", "b", "c")))
   DBI::dbDisconnect(con, shutdown = TRUE)
 

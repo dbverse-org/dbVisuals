@@ -53,8 +53,10 @@
 
   # 1. COPY FORMAT ARROWS on the existing DBI connection (sees temp tables,
   #    preserves geoarrow extension metadata via the nanoarrow extension).
+  # Extensions are loaded only if the user has installed them; dbVisuals never
+  # installs extensions or makes network calls on the caller's connection.
   for (sql in c(
-    "INSTALL nanoarrow FROM community",
+    "LOAD spatial",
     "LOAD nanoarrow",
     "CALL register_geoarrow_extensions()"
   )) try(DBI::dbExecute(con, sql), silent = TRUE)
@@ -233,8 +235,7 @@
     try(adbcdrivermanager::adbc_database_release(adbc_db), silent = TRUE)
   }, add = TRUE)
 
-  for (sql in c("INSTALL spatial", "LOAD spatial",
-                "INSTALL nanoarrow FROM community", "LOAD nanoarrow",
+  for (sql in c("LOAD spatial", "LOAD nanoarrow",
                 "CALL register_geoarrow_extensions()")) {
     s <- adbcdrivermanager::adbc_statement_init(adbc_con)
     adbcdrivermanager::adbc_statement_set_sql_query(s, sql)

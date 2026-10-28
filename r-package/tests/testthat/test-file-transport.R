@@ -1,5 +1,5 @@
 local_points_con <- function(n = 1000L, env = parent.frame()) {
-  con <- DBI::dbConnect(duckdb::duckdb())
+  con <- DBI::dbConnect(duckdb::duckdb(config = list(threads = "1")))
   withr::defer(DBI::dbDisconnect(con, shutdown = TRUE), envir = env)
   DBI::dbExecute(con, sprintf(
     "CREATE TABLE points AS

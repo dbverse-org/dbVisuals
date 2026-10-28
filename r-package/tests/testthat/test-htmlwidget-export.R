@@ -98,7 +98,7 @@ test_that("htmlwidget export validates ambiguous connection inputs", {
   skip_if_not_installed("arrow")
 
   db_path <- tempfile(fileext = ".duckdb")
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = db_path)
+  con <- DBI::dbConnect(duckdb::duckdb(config = list(threads = "1")), dbdir = db_path)
   on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
   spec <- list(plot = list(list(

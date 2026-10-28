@@ -548,8 +548,9 @@ stop_sqlrooms <- function(dashboard = NULL) {
 
 #' Get or create the cached in-memory DuckDB connection used by
 #' `/api/arrow-query`. Caches a single connection per `db_path`, attaching
-#' the requested alias on demand. Reuses across requests so that the
-#' INSTALL/LOAD of spatial+nanoarrow happens once per session.
+#' the requested alias on demand. Reuses across requests so that spatial and
+#' nanoarrow are loaded once per session (when installed; the package never
+#' installs extensions).
 #'
 #' @keywords internal
 #' @noRd
@@ -563,9 +564,7 @@ stop_sqlrooms <- function(dashboard = NULL) {
   if (!same_db) {
     .invalidate_arrow_conn()
     con <- DBI::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
-    try(DBI::dbExecute(con, "INSTALL spatial"), silent = TRUE)
     try(DBI::dbExecute(con, "LOAD spatial"), silent = TRUE)
-    try(DBI::dbExecute(con, "INSTALL nanoarrow FROM community"), silent = TRUE)
     try(DBI::dbExecute(con, "LOAD nanoarrow"), silent = TRUE)
     try(DBI::dbExecute(con, "CALL register_geoarrow_extensions()"), silent = TRUE)
     .sqlrooms_env$arrow_conn <- list(
