@@ -42,11 +42,11 @@ dbVisuals works with two companion packages on CRAN:
 
 The same workspace runs in two places.
 
-- **The web app** at <https://dbvisuals.pages.dev> runs entirely in your
-  browser on DuckDB-WASM. Open DuckDB, CSV, TSV, Parquet, JSON or Arrow
-  files from your computer; they are read in the browser and never
-  uploaded. Nothing needs to be installed, and the data you can explore
-  is limited by the browser’s memory.
+- **The web app** at `dbvisuals.pages.dev` runs entirely in your browser
+  on DuckDB-WASM. Open DuckDB, CSV, TSV, Parquet, JSON or Arrow files
+  from your computer; they are read in the browser and never uploaded.
+  Nothing needs to be installed, and the data you can explore is limited
+  by the browser’s memory.
 - **[`launchBrowser()`](https://dbverse-org.github.io/dbVisuals/reference/launchBrowser.md)
   in R** serves the workspace from your own machine. Called with no
   database, it works like the web app. Called with `db_path` (or an open
