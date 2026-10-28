@@ -2,6 +2,20 @@
 
 This is a new submission.
 
+## Resubmission
+
+This is a resubmission. The incoming pre-tests reported "Running R code in
+'testthat.R' had CPU time 2.8 times elapsed time" on Debian. In this version:
+
+* `mosaic_gl()` no longer loads DuckDB's 'spatial' extension on every call
+  (loading it is multi-threaded); it is loaded only for GeoArrow sources.
+* The package never installs DuckDB extensions: it only loads ones the user
+  has already installed, so it makes no network calls and writes nothing to
+  the user's home directory.
+* Test DuckDB connections use one thread.
+
+Locally the test suite now uses about 1.6 times its elapsed time.
+
 ## Test environments
 
 * local Ubuntu (WSL2), R 4.6.0, with the PDF manual
