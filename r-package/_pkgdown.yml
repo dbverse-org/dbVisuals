@@ -1,4 +1,12 @@
 url: https://dbverse-org.github.io/dbVisuals/
+
+# The package lives in r-package/, so "Source" links need the subdirectory.
+repo:
+  url:
+    home: https://github.com/dbverse-org/dbVisuals/
+    source: https://github.com/dbverse-org/dbVisuals/blob/main/r-package/
+    issue: https://github.com/dbverse-org/dbVisuals/issues/
+    user: https://github.com/
 destination: pkgdown
 template:
   bootstrap: 5
