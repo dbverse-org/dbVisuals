@@ -194,7 +194,9 @@ test_that(".export_query_file walks the ladder and reports the rung it used", {
   second <- export(con, "SELECT * FROM points", file.path(dir, "second"))
   expect_identical(second$method, "record_batch_stream")
   expect_identical(second$format, "arrow")
-  expect_match(second$errors, "copy_arrows: simulated", all = FALSE)
+  # The rung fails on the simulated COPY error, or earlier on LOAD nanoarrow
+  # where that extension is not installed (the package never installs it).
+  expect_match(second$errors, "^copy_arrows: ", all = FALSE)
   expect_equal(nrow(arrow::read_ipc_stream(second$path)), 100L)
 
   # Also fail the record-batch rung: Parquet is the floor of the ladder.
