@@ -31,8 +31,11 @@ mosaic_gl(
   Optional DBI connection to an R-side DuckDB used to hydrate
   \`mgl_data(type = "duckdb")\` references. Pass an existing connection
   so spatial / nanoarrow / geoarrow extensions you've already configured
-  are reused. The connection is never disconnected by this package, in a
-  Shiny session or otherwise: the caller owns its lifetime.
+  are reused. dbVisuals never installs DuckDB extensions:
+  `format = "geoarrow"` sources need the spatial extension, installed
+  once with `DBI::dbExecute(con, "INSTALL spatial")`. The connection is
+  never disconnected by this package, in a Shiny session or otherwise:
+  the caller owns its lifetime.
 
 - width, height:
 
