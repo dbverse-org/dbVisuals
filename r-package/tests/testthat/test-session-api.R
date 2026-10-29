@@ -91,7 +91,7 @@ test_that("authorized Canvas requests retain real Arrow queries and table discov
   api <- local_session_api()
   db_path <- tempfile(fileext = ".duckdb")
   on.exit({ api$cleanup(); unlink(c(db_path, paste0(db_path, ".wal"))) })
-  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = db_path)
+  con <- DBI::dbConnect(duckdb::duckdb(config = list(threads = "1")), dbdir = db_path)
   DBI::dbWriteTable(con, "cells", data.frame(id = 1:3, count = c(2, 4, 8)))
   DBI::dbDisconnect(con, shutdown = TRUE)
   api$env$db_path <- db_path

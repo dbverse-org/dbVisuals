@@ -12,7 +12,9 @@
 #' @param con     Optional DBI connection to an R-side DuckDB used to hydrate
 #'   `mgl_data(type = "duckdb")` references. Pass an existing connection so
 #'   spatial / nanoarrow / geoarrow extensions you've already configured are
-#'   reused.
+#'   reused. dbVisuals never installs DuckDB extensions: `format = "geoarrow"`
+#'   sources need the spatial extension, installed once with
+#'   `DBI::dbExecute(con, "INSTALL spatial")`.
 #'   The connection is never disconnected by this package, in a Shiny session or
 #'   otherwise: the caller owns its lifetime.
 #' @param width,height  Widget dimensions.
@@ -87,15 +89,6 @@ mosaic_gl <- function(spec, con = NULL, width = NULL, height = NULL, element_id 
       stop("data_transport = 'file' requires 'data_dir' to be a single directory path.")
     if (!dir.exists(data_dir)) dir.create(data_dir, recursive = TRUE)
     data_dir <- normalizePath(data_dir, winslash = "/", mustWork = TRUE)
-  }
-
-  # Ensure standard extensions are loaded if a connection was provided. Only
-  # the spatial extension is installed on demand, because GeoArrow export
-  # depends on it; nanoarrow is loaded when present and skipped otherwise.
-  if (!is.null(con)) {
-    for (sql in c("INSTALL spatial", "LOAD spatial", "LOAD nanoarrow",
-                  "CALL register_geoarrow_extensions()"))
-      try(DBI::dbExecute(con, sql), silent = TRUE)
   }
 
   data_envelopes <- .hydrate_data(spec, con = con,
