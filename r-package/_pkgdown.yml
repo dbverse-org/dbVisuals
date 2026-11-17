@@ -74,8 +74,3 @@ reference:
       - mgl_deckgl
       - mosaic_glOutput
       - renderMosaic_gl
-  - title: "Installation Helpers"
-    desc: "Dependency management"
-    contents:
-      - install_dbvisuals_deps
-

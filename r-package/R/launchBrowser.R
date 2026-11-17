@@ -20,15 +20,18 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' # Launch a standalone browser workspace
-#' launchBrowser()
+#' if (interactive()) {
+#'   # Open the browser workspace (DuckDB-WASM, no database file)
+#'   dashboard <- launchBrowser()
+#'   stop_sqlrooms(dashboard)
 #'
-#' # Launch with a specific GiottoDB database
-#' launchBrowser(db_path = "giottodb-visium.db")
-#'
-#' # Launch without opening browser
-#' launchBrowser(browser = FALSE)
+#'   # Serve a DuckDB database file without opening a browser
+#'   path <- tempfile(fileext = ".duckdb")
+#'   con <- DBI::dbConnect(duckdb::duckdb(), dbdir = path)
+#'   DBI::dbWriteTable(con, "cars", mtcars)
+#'   DBI::dbDisconnect(con, shutdown = TRUE)
+#'   dashboard <- launchBrowser(db_path = path, browser = FALSE)
+#'   stop_sqlrooms(dashboard)
 #' }
 launchBrowser <- function(
   db_path = NULL,
@@ -192,9 +195,9 @@ launchBrowser <- function(
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' result <- launchBrowser(browser = FALSE)
-#' stop_sqlrooms(result)
+#' if (interactive()) {
+#'   dashboard <- launchBrowser(browser = FALSE)
+#'   stop_sqlrooms(dashboard)
 #' }
 stop_sqlrooms <- function(dashboard = NULL) {
   if (is.null(dashboard)) {
@@ -1042,13 +1045,14 @@ stop_sqlrooms <- function(dashboard = NULL) {
 #' @param project Optional. A `dbProject` R6 object or `DBIConnection`.
 #'   Defaults to whatever was passed to [launchBrowser()].
 #' @param overwrite Logical. Overwrite an existing table (default `TRUE`).
+#' @return Invisibly `TRUE`. Called for its side effect: `data` is written as
+#'   table `name` in the workspace database or, when no database is attached,
+#'   kept in the session cache.
 #' @export
 #'
 #' @examples
-#' \dontrun{
 #' df <- data.frame(x = 1:10, y = rnorm(10))
 #' sqlrooms_export_table("my_table", df)
-#' }
 sqlrooms_export_table <- function(name, data, project = NULL,
                                   overwrite = TRUE) {
   if (!is.data.frame(data)) {
@@ -1106,11 +1110,15 @@ sqlrooms_export_table <- function(name, data, project = NULL,
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' library(dplyr)
-#' tbl(con, "cells") |>
-#'   filter(x > 0) |>
-#'   sqlrooms_register("cells_pos", x = _)
+#' if (requireNamespace("duckdb", quietly = TRUE) &&
+#'     requireNamespace("dplyr", quietly = TRUE) &&
+#'     requireNamespace("dbplyr", quietly = TRUE)) {
+#'   con <- DBI::dbConnect(duckdb::duckdb())
+#'   DBI::dbWriteTable(con, "cells", data.frame(x = c(-1, 2, 3), y = 1:3))
+#'   positive <- dplyr::filter(dplyr::tbl(con, "cells"), x > 0)
+#'   sqlrooms_register("cells_pos", positive, project = con)
+#'   DBI::dbGetQuery(con, "SELECT * FROM cells_pos")
+#'   DBI::dbDisconnect(con, shutdown = TRUE)
 #' }
 sqlrooms_register <- function(name, x, project = NULL,
                               temporary = FALSE, overwrite = TRUE) {
