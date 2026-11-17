@@ -17,19 +17,20 @@ it you can:
 
 ### Installation
 
+Install dbVisuals from CRAN, or the development version from the dbverse
+r-universe, in your R console:
+
 ``` r
 
 install.packages("dbVisuals")
 
-# development version
 install.packages("dbVisuals",
                  repos = c("https://dbverse-org.r-universe.dev",
                            "https://cloud.r-project.org"))
-
-# Optional: Install all recommended dependencies
-library(dbVisuals)
-install_dbvisuals_deps()
 ```
+
+Opening a database file from R needs the DBI and duckdb packages, and
+the linked views use rDeckgl and rMosaic; all four are on CRAN.
 
 dbVisuals works with two companion packages on CRAN:
 

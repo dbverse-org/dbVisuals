@@ -165,7 +165,9 @@ mosaic_gl(spec3, width = "100%", height = 620)
 The examples above ship their data frames to the browser. For anything
 large, leave the data in DuckDB and send only the query:
 `mgl_data(type = "duckdb")` with a `con`. Polygons travel as GeoArrow
-rather than JSON, and are drawn with `GeoArrowPolygonLayer`.
+rather than JSON, and are drawn with `GeoArrowPolygonLayer`. This needs
+DuckDB’s spatial extension; if you have not used it before, install it
+once by running `INSTALL spatial` on any DuckDB connection.
 
 ``` r
 
@@ -174,7 +176,6 @@ rather than JSON, and are drawn with `GeoArrowPolygonLayer`.
 db <- file.path(tempdir(), "cells.duckdb")
 unlink(db)
 con <- DBI::dbConnect(duckdb::duckdb(), db)
-DBI::dbExecute(con, "INSTALL spatial")
 DBI::dbExecute(con, "LOAD spatial")
 
 DBI::dbExecute(con, "

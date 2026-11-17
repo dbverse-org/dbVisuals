@@ -6,18 +6,16 @@ dbVisuals Application Note. For a general introduction, see
 
 ## Install
 
+Install dbVisuals and its rendering and database packages, all from
+CRAN, in your R console:
+
 ``` r
 
-install.packages("dbVisuals")
-
-# development version
-install.packages("dbVisuals",
-                 repos = c("https://dbverse-org.r-universe.dev",
-                           "https://cloud.r-project.org"))
-
-# rendering packages and database dependencies, from CRAN
-install.packages(c("DBI", "duckdb", "rDeckgl", "rMosaic"))
+install.packages(c("dbVisuals", "DBI", "duckdb", "rDeckgl", "rMosaic"))
 ```
+
+The development version is on the dbverse r-universe,
+`https://dbverse-org.r-universe.dev`.
 
 The figures and benchmarks in the Application Note were made with
 `dbVisuals` 0.1.0 (commit `7f6eb52` of

@@ -33,10 +33,3 @@ Mosaic views and deck.gl layers in one linked htmlwidget
   : Shiny output binding for the Mosaic + deck.gl viewer
 - [`renderMosaic_gl()`](https://dbverse-org.github.io/dbVisuals/reference/renderMosaic_gl.md)
   : Shiny render expression for the Mosaic + deck.gl viewer
-
-## Installation Helpers
-
-Dependency management
-
-- [`install_dbvisuals_deps()`](https://dbverse-org.github.io/dbVisuals/reference/install_dbvisuals_deps.md)
-  : Install Complete dbVisuals Dependencies

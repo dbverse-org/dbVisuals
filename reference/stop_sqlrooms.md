@@ -24,8 +24,8 @@ Invisibly returns a list with logical flags: `r_server_stopped`,
 ## Examples
 
 ``` r
-if (FALSE) { # \dontrun{
-result <- launchBrowser(browser = FALSE)
-stop_sqlrooms(result)
-} # }
+if (interactive()) {
+  dashboard <- launchBrowser(browser = FALSE)
+  stop_sqlrooms(dashboard)
+}
 ```
