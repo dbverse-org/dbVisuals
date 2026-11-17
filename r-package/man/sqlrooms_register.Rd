@@ -36,10 +36,14 @@ Accepted inputs:
 - `data.frame`: forwarded to [sqlrooms_export_table()] (materializes).
 }
 \examples{
-\dontrun{
-library(dplyr)
-tbl(con, "cells") |>
-  filter(x > 0) |>
-  sqlrooms_register("cells_pos", x = _)
+if (requireNamespace("duckdb", quietly = TRUE) &&
+    requireNamespace("dplyr", quietly = TRUE) &&
+    requireNamespace("dbplyr", quietly = TRUE)) {
+  con <- DBI::dbConnect(duckdb::duckdb())
+  DBI::dbWriteTable(con, "cells", data.frame(x = c(-1, 2, 3), y = 1:3))
+  positive <- dplyr::filter(dplyr::tbl(con, "cells"), x > 0)
+  sqlrooms_register("cells_pos", positive, project = con)
+  DBI::dbGetQuery(con, "SELECT * FROM cells_pos")
+  DBI::dbDisconnect(con, shutdown = TRUE)
 }
 }

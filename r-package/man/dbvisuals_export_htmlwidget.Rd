@@ -72,20 +72,20 @@ durable exports from dbVisuals specs; the live dbVisuals workspace continues to
 use the SQLRooms React runtime.
 }
 \examples{
-\dontrun{
-spec <- list(
-  plot = list(list(
-    mark = "dot",
-    data = list(from = "cells"),
-    x = "x",
-    y = "y"
-  ))
-)
-dbvisuals_export_htmlwidget(
-  spec,
-  "scatter.html",
-  engine = "rMosaic",
-  data = list(cells = data.frame(x = 1:10, y = 1:10))
-)
+if (requireNamespace("rMosaic", quietly = TRUE)) {
+  spec <- list(
+    plot = list(list(
+      mark = "dot",
+      data = list(from = "cells"),
+      x = "x",
+      y = "y"
+    ))
+  )
+  dbvisuals_export_htmlwidget(
+    spec,
+    file.path(tempdir(), "scatter.html"),
+    engine = "rMosaic",
+    data = list(cells = data.frame(x = 1:10, y = 1:10))
+  )
 }
 }

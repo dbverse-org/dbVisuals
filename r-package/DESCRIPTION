@@ -49,7 +49,6 @@ Suggests:
     adbcdrivermanager,
     rDeckgl,
     rMosaic,
-    remotes,
     testthat (>= 3.0.0),
     withr,
     knitr,

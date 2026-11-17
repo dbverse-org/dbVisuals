@@ -4,22 +4,29 @@ This is a new submission.
 
 ## Resubmission
 
-This is a resubmission. The incoming pre-tests reported "Running R code in
-'testthat.R' had CPU time 2.8 times elapsed time" on Debian. In this version:
+This is a resubmission. Thank you for the review. In this version:
 
-* `mosaic_gl()` no longer loads DuckDB's 'spatial' extension on every call
-  (loading it is multi-threaded); it is loaded only for GeoArrow sources.
-* The package never installs DuckDB extensions: it only loads ones the user
-  has already installed, so it makes no network calls and writes nothing to
-  the user's home directory.
-* Test DuckDB connections use one thread.
+* Added `\value` to `sqlrooms_export_table.Rd`, describing what the function
+  returns and its side effect.
+* The package no longer installs packages anywhere: `install_dbvisuals_deps()`
+  has been removed, and the vignettes no longer contain package installation
+  code (installation is described in the text instead). The package also never
+  installs DuckDB extensions; it only loads ones the user has installed.
+* Replaced every `\dontrun{}`:
+  - `sqlrooms_export_table()`, `sqlrooms_register()` and
+    `dbvisuals_export_htmlwidget()` examples now run unwrapped (each well
+    under 5 s; they need only suggested packages, checked with
+    `requireNamespace()`, and write only to `tempdir()`).
+  - `launchBrowser()` and `stop_sqlrooms()` start a local web server and open
+    a browser, so their examples are wrapped in `if (interactive())`.
 
-Locally the test suite now uses about 1.6 times its elapsed time.
+An earlier resubmission also addressed the pre-test NOTE "Running R code in
+'testthat.R' had CPU time 2.8 times elapsed time" on Debian.
 
 ## Test environments
 
 * local Ubuntu (WSL2), R 4.6.0, with the PDF manual
-* win-builder: R-release (4.6.1) and R-devel (2026-10-26 r90766)
+* win-builder: R-release (4.6.1) and R-devel
 * R-hub: linux, windows and macos-arm64 (R-devel), ubuntu-clang, ubuntu-gcc12,
   donttest, nosuggests, vnu
 * GitHub Actions: macOS and Windows (R release); Ubuntu (R devel, release and
@@ -58,11 +65,4 @@ DESCRIPTION refers to.
 The browser components load DuckDB-WASM from jsDelivr when displayed; this is
 stated in the Description and in `?mosaic_gl`. Examples, tests and vignettes do
 not require network access: examples that would open a browser or start a
-server are wrapped in `\dontrun{}` or `if (interactive())`, and vignette code
-is not evaluated.
-
-## Installing packages
-
-`install_dbvisuals_deps()` installs optional packages only after interactive
-consent (`readline()` confirmation); in non-interactive sessions it reports
-what is missing and installs nothing.
+server are wrapped in `if (interactive())`, and vignette code is not evaluated.

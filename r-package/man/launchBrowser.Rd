@@ -42,14 +42,17 @@ server provides access to the selected DuckDB database; arbitrary R code
 execution and AI features are not exposed.
 }
 \examples{
-\dontrun{
-# Launch a standalone browser workspace
-launchBrowser()
+if (interactive()) {
+  # Open the browser workspace (DuckDB-WASM, no database file)
+  dashboard <- launchBrowser()
+  stop_sqlrooms(dashboard)
 
-# Launch with a specific GiottoDB database
-launchBrowser(db_path = "giottodb-visium.db")
-
-# Launch without opening browser
-launchBrowser(browser = FALSE)
+  # Serve a DuckDB database file without opening a browser
+  path <- tempfile(fileext = ".duckdb")
+  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = path)
+  DBI::dbWriteTable(con, "cars", mtcars)
+  DBI::dbDisconnect(con, shutdown = TRUE)
+  dashboard <- launchBrowser(db_path = path, browser = FALSE)
+  stop_sqlrooms(dashboard)
 }
 }

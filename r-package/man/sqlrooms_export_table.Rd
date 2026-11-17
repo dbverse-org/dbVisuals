@@ -28,9 +28,12 @@ For lazy `tbl` objects (dbplyr / dbMatrix / dbSpatial), use
 [sqlrooms_register()] instead, which creates a SQL VIEW with no data
 movement.
 }
+\value{
+Invisibly \code{TRUE}. Called for its side effect: \code{data} is written as
+table \code{name} in the workspace database or, when no database is attached,
+kept in the session cache.
+}
 \examples{
-\dontrun{
 df <- data.frame(x = 1:10, y = rnorm(10))
 sqlrooms_export_table("my_table", df)
-}
 }
